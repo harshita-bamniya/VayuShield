@@ -33,3 +33,4 @@ Thumbs.db
 
 # Alembic auto-generated
 backend/alembic/__pycache__/
+*.coverage
