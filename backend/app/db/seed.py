@@ -77,6 +77,7 @@ async def _do_seed() -> None:
         await _seed_delhi(session)
         await _seed_ingestion_data(session)
         await _seed_attribution_alerts(session)
+        await _seed_enforcement_queue(session)
 
 
 async def _seed_sysadmin(session) -> None:
@@ -430,3 +431,81 @@ async def _seed_attribution_alerts(session) -> None:
         )
     await session.commit()
     logger.info("Attribution alerts seeded", count=len(alerts))
+
+
+async def _seed_enforcement_queue(session) -> None:
+    """Seed initial enforcement queue for Delhi (Module 06)."""
+    exists = await session.execute(
+        text("SELECT id FROM enforcement_queue WHERE city_id = :city_id LIMIT 1"),
+        {"city_id": DELHI_CITY_ID},
+    )
+    if exists.fetchone():
+        logger.info("Enforcement queue seed already present, skipping")
+        return
+
+    emission_source_ids = [
+        ("f1a2b3c4-d5e6-7890-abcd-ef1234567801", "vehicular", "active", "Anand Vihar Bus Depot"),
+        (
+            "f2a2b3c4-d5e6-7890-abcd-ef1234567802",
+            "industrial",
+            "active",
+            "Delhi Thermal Power Station",
+        ),
+        (
+            "f3a2b3c4-d5e6-7890-abcd-ef1234567803",
+            "construction",
+            "pending",
+            "Ashram Chowk Construction Site",
+        ),
+        (
+            "f4a2b3c4-d5e6-7890-abcd-ef1234567804",
+            "agricultural",
+            "expired",
+            "Haryana Border Stubble Burning Zone",
+        ),
+    ]
+
+    permit_weights = {"expired": 1.0, "pending": 0.6, "active": 0.2}
+    source_attr = {
+        "vehicular": 0.35,
+        "industrial": 0.30,
+        "construction": 0.15,
+        "agricultural": 0.20,
+    }
+
+    for src_id, src_type, permit_status, src_name in emission_source_ids:
+        attr_w = source_attr.get(src_type, 0.1)
+        fc_w = 0.40  # moderate default forecast severity (AQI ~200)
+        permit_w = permit_weights.get(permit_status, 0.5)
+        days_w = 1.0  # never inspected
+        score = round(0.35 * attr_w + 0.30 * fc_w + 0.20 * permit_w + 0.15 * days_w, 4)
+
+        brief = (
+            f"{src_name} ({src_type}) has been assigned a priority score of {score:.2f}/1.00. "
+            f"This source accounts for approximately {attr_w * 100:.0f}% of current city "
+            f"pollution attribution; the 24-hour peak forecast AQI is 200. "
+            f"The permit is {permit_status} and the site has never been inspected."
+        )
+
+        await session.execute(
+            text(
+                """
+                INSERT INTO enforcement_queue
+                    (id, city_id, emission_source_id, priority_score,
+                     evidence_brief_text, status, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :src_id, :score,
+                     :brief, 'pending', NOW(), NOW())
+                """
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "city_id": DELHI_CITY_ID,
+                "src_id": src_id,
+                "score": score,
+                "brief": brief,
+            },
+        )
+
+    await session.commit()
+    logger.info("Enforcement queue seeded", city_id=DELHI_CITY_ID, items=len(emission_source_ids))

@@ -6,6 +6,7 @@ import { useCities } from "@/features/cities/useCities";
 import { fetchCities, fetchCity } from "@/features/cities/api";
 import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
+import { fetchPendingCount } from "@/features/enforcement/api";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -66,6 +67,13 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 15, // treat fresh for 15 min
   });
 
+  const { data: pendingCount } = useQuery({
+    queryKey: ["enforcement-count", selectedCityId],
+    queryFn: () => fetchPendingCount(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const displayCity = selectedCity;
   const currentAqi = forecast?.points[0]?.predicted_aqi;
 
@@ -84,7 +92,7 @@ export default function Dashboard() {
     },
     {
       label: "Pending Inspections",
-      value: "—",
+      value: pendingCount != null ? String(pendingCount) : "—",
       desc: "In queue",
       color: "text-orange-400",
     },

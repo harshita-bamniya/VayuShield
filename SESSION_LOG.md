@@ -520,77 +520,129 @@ Only one active alert per threshold at a time. Auto-resolves on next computation
 ---
 
 ## Session 6 — Module 06: Enforcement Agent
+**Date:** 2026-07-09
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0013_enforcement_queue_table.py` | Migration: `enforcement_queue` table with FK→emission_sources, attributions, forecasts |
+| `backend/alembic/versions/0014_inspections_table.py` | Migration: `inspections` table with FK→enforcement_queue, users |
+| `backend/app/modules/enforcement/__init__.py` | Package marker |
+| `backend/app/modules/enforcement/models.py` | ORM: `EnforcementQueueItem`, `Inspection` |
+| `backend/app/modules/enforcement/schemas.py` | Pydantic DTOs: `EnforcementItemOut`, `EnforcementListOut`, `EnforcementStatusUpdate`, `InspectionCreate/Out`, `EmissionSourceBrief` |
+| `backend/app/modules/enforcement/repository.py` | DB access: list_queue (JOIN→emission_sources), get_item, upsert_queue_item, update_status, count_pending, create_inspection |
+| `backend/app/modules/enforcement/service.py` | Scoring engine: `rank_queue`, `get_queue`, `get_item`, `update_status`, `count_pending` + `_build_evidence_brief` |
+| `backend/app/api/v1/enforcement.py` | Router: GET/POST /enforcement, GET/PATCH /{item_id}, POST /{item_id}/inspections, GET /enforcement-count |
+| `backend/app/tests/test_enforcement.py` | 6 tests: auth guard, ranked list, re-rank, permit scoring, dispatch PATCH, inspection log, count endpoint |
+| `frontend/src/features/enforcement/api.ts` | Typed API calls: fetchEnforcementQueue, rankEnforcementQueue, updateEnforcementStatus, logInspection, fetchPendingCount |
+| `frontend/src/pages/Enforcement.tsx` | Full enforcement page: ranked table, priority score bar, permit badge, evidence brief expandable, Dispatch button, Re-rank button |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/main.py` | Wired `enforcement_router` |
+| `backend/app/db/seed.py` | Added `_seed_enforcement_queue`: 4 Delhi sources scored and inserted as pending queue items |
+| `frontend/src/App.tsx` | Replaced `/enforcement` placeholder with real `<Enforcement>` component |
+| `frontend/src/pages/Dashboard.tsx` | "Pending Inspections" stat card now live-fetches count from `/enforcement-count` |
+
+### Scoring Algorithm
+
+```
+priority_score = 0.35 × source_attribution   (% from latest attribution breakdown, 0–1)
+               + 0.30 × forecast_severity     (peak AQI next 24h / 500, capped at 1)
+               + 0.20 × permit_status         (expired=1.0, pending=0.6, active=0.2)
+               + 0.15 × days_since_inspection (days/30 capped at 1; never inspected = 1.0)
+```
+
+Evidence brief is a 3-sentence plain-text string — no LLM. Module 09 (Claude API) will upgrade it.
+
+### Definition of Done — Module 06 ✅
+
+- [x] Migration 0013 creates `enforcement_queue` table with FK constraints and indexes
+- [x] Migration 0014 creates `inspections` table with FK constraints and indexes
+- [x] `GET /api/v1/cities/{city_id}/enforcement` returns ranked queue (highest score first)
+- [x] `POST /api/v1/cities/{city_id}/enforcement/rank` re-scores all emission sources (admin/sysadmin)
+- [x] `GET /api/v1/cities/{city_id}/enforcement/{item_id}` returns single item with evidence brief
+- [x] `PATCH /api/v1/cities/{city_id}/enforcement/{item_id}` updates status
+- [x] `POST /api/v1/cities/{city_id}/enforcement/{item_id}/inspections` logs inspection outcome
+- [x] `GET /api/v1/cities/{city_id}/enforcement-count` returns pending count
+- [x] 4 Delhi enforcement queue items seeded on boot (one per emission source)
+- [x] Frontend `/enforcement` page: ranked table, score bars, permit badges, Dispatch button, evidence brief
+- [x] Dashboard "Pending Inspections" stat card shows live count from API
+- [x] 6 tests written — total test count: **40**
+- [x] `ruff format . && ruff check .` — all clean
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues going into Session 7
+- Scoring uses only attribution breakdown typed by source `type` (vehicular/industrial/etc), not per-source contribution — a source of type "vehicular" gets 100% of the vehicular attribution pct. Per-source attribution would require spatial join in the attribution engine (future work).
+- `POST /{item_id}/inspections` marks the source's `last_inspected_at` only when `completed_at` is provided in the request body. If no `completed_at` is sent, the source date stays unchanged.
+- The enforcement count endpoint (`/enforcement-count`) always counts rows with status=`pending`. After dispatch, the count falls — which is correct behaviour, but the Dashboard stat card doesn't auto-refresh unless the user navigates away and back.
+
+---
+
+## Session 7 — Module 07: Advisory Engine
 **Planned — build next**
 
 ### What needs to be built
 
-Module 06 creates the ranked enforcement queue: scores emission sources by pollution risk, generates an evidence brief for each, and exposes the queue to inspectors.
+Module 07 generates public-health advisories based on AQI forecasts and attribution, and exposes them via API and frontend.
 
 #### Backend
-- **Migration 0013:** `enforcement_queue` table
-  - `id UUID PK`, `city_id FK`, `emission_source_id FK→emission_sources`, `priority_score FLOAT`, `evidence_brief_text TEXT`, `status VARCHAR(20)` (pending/dispatched/completed), `attribution_id FK→attributions nullable`, `forecast_id FK→forecasts nullable`, `created_at`, `updated_at`
-- **Migration 0014:** `inspections` table
-  - `id UUID PK`, `enforcement_queue_id FK`, `inspector_id FK→users`, `scheduled_at TIMESTAMPTZ nullable`, `completed_at TIMESTAMPTZ nullable`, `outcome VARCHAR(50)` (compliant/violation/no_access), `notes TEXT`, `created_at`
-- **ORM models:** `EnforcementQueueItem`, `Inspection` in `app/modules/enforcement/models.py`
-- **Scoring service** (`app/modules/enforcement/service.py`):
-  - For each active `emission_source` in the city, compute `priority_score`:
-    - `source_attribution_weight` — contribution % from latest attribution for that source type
-    - `forecast_severity_weight` — peak AQI in next 24h from latest forecast (normalised 0–1)
-    - `permit_status_weight` — expired=1.0, pending=0.6, active=0.2
-    - `last_inspected_weight` — days since last inspection (capped at 30 days, normalised 0–1)
-    - `priority_score = 0.35×attribution + 0.30×forecast + 0.20×permit + 0.15×inspected`
-  - Sort descending by `priority_score` → ranked queue
-  - Generate `evidence_brief_text` (plain text, 2–3 sentences): source name, type, score rationale, permit status, days since last inspection
+- **Migration 0015:** `advisories` table
+  - `id UUID PK`, `city_id FK`, `ward_id FK nullable`, `language VARCHAR(10)`, `title VARCHAR(255)`, `body TEXT`, `aqi_level VARCHAR(50)`, `dominant_source VARCHAR(50)`, `channel VARCHAR(50)` (web/sms/push), `sent_at TIMESTAMPTZ nullable`, `created_at`
+- **ORM model:** `Advisory` in `app/modules/advisory/models.py`
+- **Service** (`app/modules/advisory/service.py`):
+  - Pull latest attribution + forecast for city
+  - Generate advisory body (plain text, 3–4 sentences): AQI level, dominant source, affected populations, recommended actions (no LLM — Module 09 upgrades this)
+  - Support multiple languages via `SUPPORTED_LANGUAGES` constant (English + Hindi at minimum)
+  - Idempotent: skip if an advisory with same city/aqi_level/created_at-day already exists
 - **API endpoints:**
-  - `GET /api/v1/cities/{city_id}/enforcement` — ranked queue (paginated, filter by status)
-  - `POST /api/v1/cities/{city_id}/enforcement/rank` — re-rank queue (admin/sysadmin only)
-  - `GET /api/v1/cities/{city_id}/enforcement/{item_id}` — single item with evidence brief
-  - `PATCH /api/v1/cities/{city_id}/enforcement/{item_id}` — update status (dispatched/completed)
-  - `POST /api/v1/cities/{city_id}/enforcement/{item_id}/inspections` — log inspection outcome
-- **Seed:** run initial ranking for Delhi on boot, produce ≥2 queue items
+  - `GET /api/v1/cities/{city_id}/advisories` — list (paginated, filter by language/channel)
+  - `POST /api/v1/cities/{city_id}/advisories/generate` — generate fresh advisories for today (admin/sysadmin)
+  - `GET /api/v1/cities/{city_id}/advisories/{advisory_id}` — single advisory
+- **Seed:** generate 2 sample advisories for Delhi on boot
 
 #### Frontend
-- `frontend/src/features/enforcement/api.ts` — typed API calls
-- `frontend/src/pages/Enforcement.tsx` — ranked list page: table of sources with priority score bar, permit status badge, evidence brief expandable panel, "Dispatch" button (sets status=dispatched)
-- Wire `/enforcement` route in `App.tsx` (replace placeholder)
-- Update "Pending Inspections" stat card on Dashboard to show live count from enforcement queue
+- `frontend/src/features/advisory/api.ts` — typed API calls
+- `frontend/src/pages/Advisories.tsx` — list page: advisory cards with AQI badge, source tag, body text, language selector
+- Wire `/advisories` route in `App.tsx` (replace placeholder)
+- Update "Advisories Sent" stat card on Dashboard to show live count
 
-#### Key decisions (do not re-derive)
-- Evidence brief is plain text generated by the scoring service (no LLM yet — Module 09 will upgrade this with Claude)
-- Priority score is a weighted sum, not ML — interpretable, auditable, fast
-- Inspector PWA uses the same enforcement queue API; no separate endpoint needed
+#### Tests (≥5)
+- GET /advisories returns list
+- POST /generate creates advisories for each supported language
+- Advisory body mentions dominant source
+- Language filter returns only matching language
+- Sysadmin can generate; unauthenticated gets 401
 
-#### Tests to write
-- `GET /enforcement` returns ranked list, highest score first
-- `POST /enforcement/rank` creates queue items for all active sources
-- Score for expired-permit source is higher than active-permit source (same type)
-- `PATCH /{item_id}` changes status to dispatched
-- `POST /{item_id}/inspections` logs outcome and updates `last_inspected_at` on the source
-
-### PROMPT TO USE AT THE START OF SESSION 6
+### PROMPT TO USE AT THE START OF SESSION 7
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 05 are complete. We have 34 passing tests. The last commit is feat(module-05).
+Modules 00 through 06 are complete. We have 40 passing tests. The last commit is feat(module-06).
 
-Your job this session is Module 06: Enforcement Agent.
+Your job this session is Module 07: Advisory Engine.
 
 Build:
-1. Migrations 0013 (enforcement_queue) and 0014 (inspections)
-2. ORM models, schemas, repository, service in app/modules/enforcement/
-3. Scoring algorithm: priority_score = 0.35×source_attribution + 0.30×forecast_severity + 0.20×permit_status + 0.15×days_since_inspection
-4. Plain-text evidence brief generator (no LLM — just formatted string with score rationale)
-5. API: GET/POST /cities/{city_id}/enforcement, GET/PATCH /{item_id}, POST /{item_id}/inspections
-6. Seed: run initial ranking for Delhi on boot
-7. Frontend: Enforcement.tsx page (ranked table, priority score bar, permit badge, dispatch button)
-8. Wire /enforcement route in App.tsx
-9. Update Dashboard "Pending Inspections" stat card to show live count
-10. Tests (≥5)
+1. Migration 0015 (advisories table)
+2. ORM model, schemas, repository, service in app/modules/advisory/
+3. Plain-text advisory generator (no LLM — pulls attribution + forecast, formats 3–4 sentences per language)
+4. API: GET /cities/{city_id}/advisories, POST /generate, GET /{advisory_id}
+5. Seed: 2 sample advisories for Delhi on boot
+6. Frontend: Advisories.tsx page (advisory cards, language filter, AQI badge)
+7. Wire /advisories route in App.tsx
+8. Update Dashboard "Advisories Sent" stat card to show live count
+9. Tests (≥5)
 
-After building, update SESSION_LOG.md with what was done and add the Module 07 session prompt. Commit everything.
+After building everything, run ruff format . && ruff check . to ensure lint is clean before committing. Then update SESSION_LOG.md with what was done and add the Module 08 session prompt at the bottom. Commit everything and push.
 ```
 
 ---

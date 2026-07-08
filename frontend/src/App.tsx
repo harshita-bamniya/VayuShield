@@ -5,6 +5,7 @@ import RoleGuard from "@/components/RoleGuard";
 import client from "@/lib/apiClient";
 import { useAuth } from "@/features/auth/useAuth";
 import Dashboard from "@/pages/Dashboard";
+import Enforcement from "@/pages/Enforcement";
 import Login from "@/pages/Login";
 import type { UserOut } from "@/lib/types";
 
@@ -74,7 +75,7 @@ export default function App() {
             path="/enforcement"
             element={
               <RoleGuard>
-                <Placeholder name="Enforcement Queue (Module 06)" />
+                <Enforcement />
               </RoleGuard>
             }
           />
