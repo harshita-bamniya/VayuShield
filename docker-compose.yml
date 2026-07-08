@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16-latest
+    environment:
+      POSTGRES_USER: vayushield
+      POSTGRES_PASSWORD: vayushield_dev
+      POSTGRES_DB: vayushield
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vayushield"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vayushield:vayushield_dev@db:5432/vayushield
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev_secret_key_change_in_prod
+      ENVIRONMENT: development
+      SEED_ADMIN_EMAIL: admin@vayushield.local
+      SEED_ADMIN_PASSWORD: Admin@123
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: pnpm dev --host
+
+volumes:
+  pgdata:
