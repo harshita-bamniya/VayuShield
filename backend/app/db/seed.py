@@ -8,7 +8,7 @@ Seeds:
 
 import json
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 
 from passlib.context import CryptContext
 from sqlalchemy import text
@@ -76,6 +76,7 @@ async def _do_seed() -> None:
         await _seed_sysadmin(session)
         await _seed_delhi(session)
         await _seed_ingestion_data(session)
+        await _seed_attribution_alerts(session)
 
 
 async def _seed_sysadmin(session) -> None:
@@ -211,7 +212,6 @@ async def _seed_ingestion_data(session) -> None:
     """Seed 7 days of hourly station readings + known Delhi emission sources."""
     import math
     import random
-    from datetime import datetime, timedelta
 
     # ── Emission sources ──────────────────────────────────────────────────────
     exists = await session.execute(
@@ -358,3 +358,75 @@ async def _seed_ingestion_data(session) -> None:
         emission_sources=len(emission_sources),
         station_readings=total_readings,
     )
+
+
+async def _seed_attribution_alerts(session) -> None:
+    """Seed a few test AQI alerts for Delhi (Module 04)."""
+    exists = await session.execute(
+        text("SELECT id FROM aqi_alerts WHERE city_id = :city_id LIMIT 1"),
+        {"city_id": DELHI_CITY_ID},
+    )
+    if exists.fetchone():
+        logger.info("Attribution alerts seed already present, skipping")
+        return
+
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+
+    alerts = [
+        # A resolved "poor" alert from 3 days ago
+        {
+            "id": str(uuid.uuid4()),
+            "city_id": DELHI_CITY_ID,
+            "alert_level": "poor",
+            "threshold": 200,
+            "aqi_value": 245,
+            "station_id": STATION_AV_ID,
+            "dominant_source": "vehicular",
+            "triggered_at": now - timedelta(days=3, hours=8),
+            "resolved_at": now - timedelta(days=3, hours=2),
+            "is_active": False,
+        },
+        # A resolved "very_poor" alert from 1 day ago
+        {
+            "id": str(uuid.uuid4()),
+            "city_id": DELHI_CITY_ID,
+            "alert_level": "very_poor",
+            "threshold": 300,
+            "aqi_value": 342,
+            "station_id": STATION_ITO_ID,
+            "dominant_source": "industrial",
+            "triggered_at": now - timedelta(days=1, hours=10),
+            "resolved_at": now - timedelta(days=1, hours=3),
+            "is_active": False,
+        },
+        # An active "poor" alert right now
+        {
+            "id": str(uuid.uuid4()),
+            "city_id": DELHI_CITY_ID,
+            "alert_level": "poor",
+            "threshold": 200,
+            "aqi_value": 218,
+            "station_id": STATION_AV_ID,
+            "dominant_source": "vehicular",
+            "triggered_at": now - timedelta(hours=2),
+            "resolved_at": None,
+            "is_active": True,
+        },
+    ]
+
+    for a in alerts:
+        await session.execute(
+            text(
+                """
+                INSERT INTO aqi_alerts
+                    (id, city_id, alert_level, threshold, aqi_value,
+                     station_id, dominant_source, triggered_at, resolved_at, is_active, created_at)
+                VALUES
+                    (:id, :city_id, :alert_level, :threshold, :aqi_value,
+                     :station_id, :dominant_source, :triggered_at, :resolved_at, :is_active, NOW())
+                """
+            ),
+            a,
+        )
+    await session.commit()
+    logger.info("Attribution alerts seeded", count=len(alerts))

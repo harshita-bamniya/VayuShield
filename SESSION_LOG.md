@@ -377,7 +377,123 @@ Your job this session is Module 04: Attribution Engine. Build the per-ward, per-
 
 ---
 
-## Sessions 4+ — Modules 03–13
+---
+
+## Session 4 — Module 04: Attribution Engine
+**Date:** 2026-07-09
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0010_attributions_table.py` | Migration: `attributions` table — per-city hourly source-contribution snapshots |
+| `backend/alembic/versions/0011_aqi_alerts_table.py` | Migration: `aqi_alerts` table — alert history for threshold crossings (200/300/400) |
+| `backend/app/modules/attribution/__init__.py` | Package marker |
+| `backend/app/modules/attribution/models.py` | SQLAlchemy `Attribution` + `AqiAlert` ORM models |
+| `backend/app/modules/attribution/schemas.py` | Pydantic DTOs: `AttributionOut`, `AttributionRankingOut`, `RankedSource`, `AqiAlertOut`, `SourceBreakdown` |
+| `backend/app/modules/attribution/repository.py` | DB access: `get_latest_attribution`, `list_attributions`, `create_attribution`, `list_alerts`, `get_active_alert_for_threshold`, `create_alert`, `resolve_alert` |
+| `backend/app/modules/attribution/service.py` | Attribution engine: wind-based dispersion, haversine distance, bearing calculation, wind-alignment factor, distance decay, alert threshold evaluation |
+| `backend/app/api/v1/attribution.py` | Router: `GET /cities/{city_id}/attribution`, `POST /cities/{city_id}/attribution/compute`, `GET /cities/{city_id}/alerts` |
+| `backend/app/tests/test_attribution.py` | 8 tests: auth guard, ranking structure, recompute flag, percentages sum to 100, alert list, active-only filter, alert seeded data |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/main.py` | Wired `attribution_router` |
+| `backend/app/db/seed.py` | Added `_seed_attribution_alerts`: 3 seeded Delhi alerts (1 active poor, 1 resolved poor, 1 resolved very_poor); fixed `datetime/timedelta` imports at module level |
+
+### Attribution Engine — How It Works
+
+**Algorithm (physics-based dispersion, simplified):**
+1. Pull average AQI from latest `station_readings` per active station in city.
+2. Pull `wind_speed` + `wind_dir` from latest `weather_readings`.
+3. Compute city receptor point = centroid of active station locations.
+4. For each `emission_source`, compute dispersion weight:
+   - `base_weight(type)` — industrial > fire > vehicular > agricultural > construction > other
+   - `distance_decay = 1/distance_km²` — closer sources contribute more
+   - `wind_alignment` — cosine similarity between source bearing and wind direction (upwind sources score high)
+   - `weight = base × alignment × decay`
+5. Also tally active `fire_hotspots` from last 24h as fire contribution.
+6. Normalise weights → percentages. Identify `dominant_source`.
+7. Persist to `attributions` table.
+8. Evaluate thresholds: create `aqi_alerts` when AQI ≥ 200/300/400; resolve active alerts when AQI drops below.
+
+**Alert thresholds:**
+- AQI ≥ 200 → `"poor"` alert
+- AQI ≥ 300 → `"very_poor"` alert
+- AQI ≥ 400 → `"severe"` alert
+
+Only one active alert per threshold at a time. Auto-resolves on next computation if AQI falls below.
+
+### Definition of Done — Module 04 ✅
+
+- [x] Migration 0010 creates `attributions` table with city/timestamp indexes
+- [x] Migration 0011 creates `aqi_alerts` table with city/is_active indexes
+- [x] `GET /api/v1/cities/{city_id}/attribution` returns ranked source breakdown
+- [x] `POST /api/v1/cities/{city_id}/attribution/compute` triggers fresh computation
+- [x] `GET /api/v1/cities/{city_id}/attribution?recompute=true` also works
+- [x] `GET /api/v1/cities/{city_id}/alerts` returns alert history
+- [x] `GET /api/v1/cities/{city_id}/alerts?active_only=true` returns only active alerts
+- [x] Attribution percentages sum to ~100%
+- [x] Wind-based dispersion logic implemented (haversine distance + wind alignment factor)
+- [x] Alert thresholds 200/300/400 auto-create and auto-resolve alerts
+- [x] 3 test alerts seeded for Delhi (1 active, 2 resolved)
+- [x] 8 new tests written — total test count: 27
+- [x] All Python files parse without syntax errors
+
+### Known issues going into Session 5
+- Attribution computation needs weather data (`weather_readings`) to use wind direction. If no weather reading exists, wind alignment defaults to 0.5 (neutral) for all sources — still produces a valid attribution, just unguided by wind.
+- `POST /weather/poll` must be called once after `docker-compose up` to populate weather before attributions use real wind data (same constraint from Module 03).
+- Attribution is city-level, not ward-level. Per-ward attribution (using station→ward assignment + ward-centroid) is a future enhancement.
+- RQ background jobs for auto-running attribution after each station poll cycle not yet wired (Module 03 jobs exist as stubs; wire in a later session).
+
+---
+
+## Session 5 — Module 05: Forecasting Agent
+**Planned — not yet built**
+
+### What needs to be built
+
+Module 05 owns the 72-hour AQI forecast pipeline.
+
+#### Backend
+- Migration 0012: `forecasts` table (`id UUID`, `city_id FK`, `ward_id FK nullable`, `valid_from TIMESTAMPTZ`, `valid_to TIMESTAMPTZ`, `aqi_forecast INT`, `pm25_forecast FLOAT`, `confidence FLOAT`, `model_version VARCHAR`, `created_at`)
+- Migration 0013: `forecast_grid_points` table for 1km spatial interpolation grid (optional — add if time permits)
+- ORM models: `Forecast` in `app/modules/forecasting/models.py`
+- Forecasting service using Prophet or LightGBM:
+  - Input: last 7-30 days of `station_readings` + `weather_readings` (historical + Open-Meteo forecast)
+  - Output: 72-hour AQI forecast at city/ward level (hourly resolution)
+  - Features: pm25 history, hour-of-day, day-of-week, wind speed/dir, humidity, temp, seasonal indicators
+  - Model: use Prophet for MVP (handles seasonality + trend, no feature engineering overhead)
+- API endpoints:
+  - `GET /api/v1/cities/{city_id}/forecast` — latest 72-hour forecast
+  - `POST /api/v1/cities/{city_id}/forecast/run` — trigger reforecast (admin/sysadmin)
+- Alert integration: if forecast crosses 200/300/400 in next 18h, create a proactive advisory trigger (Module 08 hook)
+
+#### Frontend
+- `features/forecast/api.ts` — typed API calls
+- Recharts line chart showing 72-hour AQI forecast (shaded bands for AQI categories)
+- Wire into Dashboard stats card (forecast peak AQI in next 24h)
+
+### PROMPT TO USE AT THE START OF SESSION 5
+
+```
+Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md and memory/project_vayushield.md before doing anything.
+
+We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
+
+Modules 00, 01, 02, 03, and 04 are complete. CI has 27 tests.
+
+Your job this session is Module 05: Forecasting Agent. Build a 72-hour AQI forecast pipeline using Prophet (or LightGBM). The forecast should use station_readings history + weather_readings (including Open-Meteo forecast data). Expose GET /cities/{city_id}/forecast and POST /cities/{city_id}/forecast/run. Add a Recharts line chart to the Dashboard frontend. Write tests for the forecast endpoints.
+```
+
+---
+
+## Sessions 5+ — Modules 05–13
 See `03_DEVELOPMENT_ROADMAP_SESSION_PLAN.md` for the full ordered build plan.
 
 **Critical path reminder:** 00 → 01 → 02 → 03 → {04, 05 parallel} → 06 → {07, 08, 09 parallel} → 10/11/12/13
