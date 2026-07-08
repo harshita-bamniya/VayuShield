@@ -36,6 +36,7 @@ def upgrade() -> None:
     op.create_index("ix_weather_readings_city_id", "weather_readings", ["city_id"])
     op.create_index("ix_weather_readings_ts", "weather_readings", ["ts"])
     conn = op.get_bind()
+    conn.execute(sa.text("SAVEPOINT create_hypertable_sp"))
     try:
         conn.execute(
             sa.text(
@@ -43,8 +44,9 @@ def upgrade() -> None:
                 "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
             )
         )
+        conn.execute(sa.text("RELEASE SAVEPOINT create_hypertable_sp"))
     except Exception:
-        pass
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT create_hypertable_sp"))
 
 
 def downgrade() -> None:
