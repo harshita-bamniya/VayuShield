@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str  # plain str — .local TLD fails EmailStr; wrong email just won't match DB
     password: str
 
 
