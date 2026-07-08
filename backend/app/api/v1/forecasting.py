@@ -1,7 +1,6 @@
 """Forecasting API — Module 05."""
 
 from fastapi import APIRouter, Depends, Query
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db

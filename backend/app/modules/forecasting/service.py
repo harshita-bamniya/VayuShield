@@ -17,7 +17,6 @@ Algorithm:
 8. Persist 72 rows; mark previous batch stale.
 """
 
-import math
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
