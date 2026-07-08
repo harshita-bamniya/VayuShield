@@ -2,7 +2,9 @@ version: "3.9"
 
 services:
   db:
-    image: timescale/timescaledb-ha:pg16-latest
+    build:
+      context: .
+      dockerfile: Dockerfile.db
     environment:
       POSTGRES_USER: vayushield
       POSTGRES_PASSWORD: vayushield_dev
