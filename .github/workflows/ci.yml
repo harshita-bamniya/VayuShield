@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16-latest
+        image: timescale/timescaledb-ha:pg16-ts2-latest
         env:
           POSTGRES_USER: vayushield
           POSTGRES_PASSWORD: vayushield_dev
