@@ -78,6 +78,7 @@ async def _do_seed() -> None:
         await _seed_ingestion_data(session)
         await _seed_attribution_alerts(session)
         await _seed_enforcement_queue(session)
+        await _seed_advisories(session)
 
 
 async def _seed_sysadmin(session) -> None:
@@ -509,3 +510,72 @@ async def _seed_enforcement_queue(session) -> None:
 
     await session.commit()
     logger.info("Enforcement queue seeded", city_id=DELHI_CITY_ID, items=len(emission_source_ids))
+
+
+async def _seed_advisories(session) -> None:
+    """Seed 2 sample advisories for Delhi (Module 07) — one English, one Hindi."""
+    exists = await session.execute(
+        text("SELECT id FROM advisories WHERE city_id = :city_id LIMIT 1"),
+        {"city_id": DELHI_CITY_ID},
+    )
+    if exists.fetchone():
+        logger.info("Advisories seed already present, skipping")
+        return
+
+    advisories = [
+        {
+            "id": str(uuid.uuid4()),
+            "language": "en",
+            "title": "Air Quality Advisory — Poor Air Quality Warning",
+            "body": (
+                "Current AQI is 245 (Poor), primarily driven by vehicular emissions "
+                "(vehicles and transport). Air quality is poor and likely to cause breathing "
+                "discomfort to most people. Avoid prolonged outdoor physical activity — "
+                "particularly jogging, cycling, or sports. Wear an N95/FFP2 mask if outdoor "
+                "exposure is unavoidable. People with respiratory or cardiovascular conditions "
+                "should stay indoors."
+            ),
+            "aqi_level": "Poor",
+            "dominant_source": "vehicular",
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "language": "hi",
+            "title": "वायु गुणवत्ता सलाह — खराब वायु गुणवत्ता चेतावनी",
+            "body": (
+                "वर्तमान AQI 245 (Poor) है, जो मुख्यतः वाहनों के धुएं के कारण है। "
+                "वायु गुणवत्ता खराब है और अधिकांश लोगों को सांस लेने में परेशानी हो सकती है। "
+                "लंबे समय तक बाहर शारीरिक गतिविधि से बचें। "
+                "यदि बाहर जाना अपरिहार्य हो तो N95/FFP2 मास्क पहनें। "
+                "श्वसन या हृदय रोग से पीड़ित लोग घर के अंदर रहें।"
+            ),
+            "aqi_level": "Poor",
+            "dominant_source": "vehicular",
+        },
+    ]
+
+    for adv in advisories:
+        await session.execute(
+            text(
+                """
+                INSERT INTO advisories
+                    (id, city_id, ward_id, language, title, body,
+                     aqi_level, dominant_source, channel, sent_at, created_at)
+                VALUES
+                    (:id, :city_id, NULL, :language, :title, :body,
+                     :aqi_level, :dominant_source, 'web', NULL, NOW())
+                """
+            ),
+            {
+                "id": adv["id"],
+                "city_id": DELHI_CITY_ID,
+                "language": adv["language"],
+                "title": adv["title"],
+                "body": adv["body"],
+                "aqi_level": adv["aqi_level"],
+                "dominant_source": adv["dominant_source"],
+            },
+        )
+
+    await session.commit()
+    logger.info("Advisories seeded", city_id=DELHI_CITY_ID, count=len(advisories))

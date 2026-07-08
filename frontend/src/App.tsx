@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import RoleGuard from "@/components/RoleGuard";
 import client from "@/lib/apiClient";
 import { useAuth } from "@/features/auth/useAuth";
+import Advisories from "@/pages/Advisories";
 import Dashboard from "@/pages/Dashboard";
 import Enforcement from "@/pages/Enforcement";
 import Login from "@/pages/Login";
@@ -83,7 +84,7 @@ export default function App() {
             path="/advisories"
             element={
               <RoleGuard>
-                <Placeholder name="Advisory Log (Module 07)" />
+                <Advisories />
               </RoleGuard>
             }
           />

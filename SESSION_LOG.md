@@ -586,63 +586,101 @@ Evidence brief is a 3-sentence plain-text string — no LLM. Module 09 (Claude A
 ---
 
 ## Session 7 — Module 07: Advisory Engine
+**Date:** 2026-07-09
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0015_advisories_table.py` | Migration: `advisories` table with city/language/channel indexes |
+| `backend/app/modules/advisory/__init__.py` | Package marker |
+| `backend/app/modules/advisory/models.py` | SQLAlchemy `Advisory` ORM model |
+| `backend/app/modules/advisory/schemas.py` | Pydantic DTOs: `AdvisoryOut`, `AdvisoryListOut`, `AdvisoryGenerateResponse` |
+| `backend/app/modules/advisory/repository.py` | DB access: `list_advisories`, `get_advisory`, `advisory_exists_today`, `create_advisory`, `count_advisories` |
+| `backend/app/modules/advisory/service.py` | Template-based advisory generator — 6 AQI levels × 2 languages (en+hi), pulls attribution + station AQI; idempotent per city/aqi_level/language/day |
+| `backend/app/api/v1/advisory.py` | Router: `GET /cities/{city_id}/advisories`, `POST /generate`, `GET /{advisory_id}`, `GET /advisory-count` |
+| `backend/app/tests/test_advisory.py` | 7 tests: auth guard, list structure, generate count, body mentions source, language filter, get-by-id, count endpoint |
+| `frontend/src/features/advisory/api.ts` | Typed API calls: `fetchAdvisories`, `fetchAdvisory`, `generateAdvisories`, `fetchAdvisoryCount` |
+| `frontend/src/pages/Advisories.tsx` | Advisory list page: language selector, advisory cards with AQI badge + source tag + expandable body, "Generate Advisories" button (admin/sysadmin only) |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/main.py` | Wired `advisory_router` |
+| `backend/app/db/seed.py` | Added `_seed_advisories`: 2 Delhi advisories on boot (English + Hindi) |
+| `frontend/src/lib/types.ts` | Updated `Advisory` interface to match actual API shape (replaced stub) |
+| `frontend/src/App.tsx` | Replaced `/advisories` placeholder with `<Advisories>` component |
+| `frontend/src/pages/Dashboard.tsx` | "Advisories Sent" stat card now live from `/advisory-count` API |
+
+### Advisory Generator — How It Works
+
+**Algorithm (template-based, no LLM):**
+1. Pull latest `attributions` record for city → `dominant_source`.
+2. Pull average AQI from last 2h of `station_readings` for city.
+3. Run `aqi_category(aqi)` → one of 6 levels (Good / Satisfactory / Moderate / Poor / Very Poor / Severe).
+4. For each language in `["en", "hi"]`:
+   - Check idempotency: skip if advisory with same city + aqi_level + language was created today.
+   - Build 4-sentence body from `_SOURCE_LABEL_*` + `_AQI_ADVICE_*` templates.
+   - Pick matching title from `_AQI_TITLE_*`.
+   - Persist to `advisories` table.
+5. Return `{ generated, skipped, advisories }`.
+
+**Templates cover:** all 6 CPCB AQI levels × all known source types (vehicular/industrial/construction/agricultural/fire/other) × 2 languages.
+
+**Module 09 hook:** Replace `_build_body_en` / `_build_body_hi` with Claude API calls when Module 09 is built.
+
+### Definition of Done — Module 07 ✅
+
+- [x] Migration 0015 creates `advisories` table with indexes
+- [x] `GET /api/v1/cities/{city_id}/advisories` returns paginated list, filterable by `language` and `channel`
+- [x] `POST /api/v1/cities/{city_id}/advisories/generate` creates advisories for en + hi (admin/sysadmin only)
+- [x] `GET /api/v1/cities/{city_id}/advisories/{advisory_id}` returns single advisory
+- [x] `GET /api/v1/cities/{city_id}/advisory-count` returns total count
+- [x] Idempotent: second `/generate` on same day skips already-created advisories
+- [x] Advisory body always mentions dominant pollution source
+- [x] 2 Delhi advisories seeded on boot (English + Hindi)
+- [x] Frontend `/advisories` page: AQI badge, source tag, expandable body, language filter
+- [x] "Generate Advisories" button visible to admin/sysadmin only
+- [x] Dashboard "Advisories Sent" stat card shows live count from API
+- [x] `Advisory` type in `frontend/src/lib/types.ts` updated to match real API shape
+- [x] 7 tests written — total test count: **47**
+- [x] `ruff format . && ruff check .` — clean
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues going into Session 8
+- Advisory language support is English + Hindi only. Other SUPPORTED_LANGUAGES (mr/kn/ta/bn/gu) fall back to English body text with an English title — not translated. Add translation templates per language in service.py to fix.
+- `advisory_exists_today` uses `DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')` — if the DB clock differs from local clock, the idempotency window may shift by up to one day.
+- No `sent_at` update mechanism yet — advisories are created with `sent_at = NULL`. A dispatch worker (future module) should set this when the advisory is actually pushed to users.
+
+---
+
+## Session 8 — Module 08: Ward Detail & Map Overlay
 **Planned — build next**
 
-### What needs to be built
-
-Module 07 generates public-health advisories based on AQI forecasts and attribution, and exposes them via API and frontend.
-
-#### Backend
-- **Migration 0015:** `advisories` table
-  - `id UUID PK`, `city_id FK`, `ward_id FK nullable`, `language VARCHAR(10)`, `title VARCHAR(255)`, `body TEXT`, `aqi_level VARCHAR(50)`, `dominant_source VARCHAR(50)`, `channel VARCHAR(50)` (web/sms/push), `sent_at TIMESTAMPTZ nullable`, `created_at`
-- **ORM model:** `Advisory` in `app/modules/advisory/models.py`
-- **Service** (`app/modules/advisory/service.py`):
-  - Pull latest attribution + forecast for city
-  - Generate advisory body (plain text, 3–4 sentences): AQI level, dominant source, affected populations, recommended actions (no LLM — Module 09 upgrades this)
-  - Support multiple languages via `SUPPORTED_LANGUAGES` constant (English + Hindi at minimum)
-  - Idempotent: skip if an advisory with same city/aqi_level/created_at-day already exists
-- **API endpoints:**
-  - `GET /api/v1/cities/{city_id}/advisories` — list (paginated, filter by language/channel)
-  - `POST /api/v1/cities/{city_id}/advisories/generate` — generate fresh advisories for today (admin/sysadmin)
-  - `GET /api/v1/cities/{city_id}/advisories/{advisory_id}` — single advisory
-- **Seed:** generate 2 sample advisories for Delhi on boot
-
-#### Frontend
-- `frontend/src/features/advisory/api.ts` — typed API calls
-- `frontend/src/pages/Advisories.tsx` — list page: advisory cards with AQI badge, source tag, body text, language selector
-- Wire `/advisories` route in `App.tsx` (replace placeholder)
-- Update "Advisories Sent" stat card on Dashboard to show live count
-
-#### Tests (≥5)
-- GET /advisories returns list
-- POST /generate creates advisories for each supported language
-- Advisory body mentions dominant source
-- Language filter returns only matching language
-- Sysadmin can generate; unauthenticated gets 401
-
-### PROMPT TO USE AT THE START OF SESSION 7
+### PROMPT TO USE AT THE START OF SESSION 8
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 06 are complete. We have 40 passing tests. The last commit is feat(module-06).
+Modules 00 through 07 are complete. We have 47 passing tests. The last commit is feat(module-07).
 
-Your job this session is Module 07: Advisory Engine.
+Your job this session is Module 08: Ward Detail & Map Overlay.
 
 Build:
-1. Migration 0015 (advisories table)
-2. ORM model, schemas, repository, service in app/modules/advisory/
-3. Plain-text advisory generator (no LLM — pulls attribution + forecast, formats 3–4 sentences per language)
-4. API: GET /cities/{city_id}/advisories, POST /generate, GET /{advisory_id}
-5. Seed: 2 sample advisories for Delhi on boot
-6. Frontend: Advisories.tsx page (advisory cards, language filter, AQI badge)
-7. Wire /advisories route in App.tsx
-8. Update Dashboard "Advisories Sent" stat card to show live count
-9. Tests (≥5)
+1. Backend: GET /cities/{city_id}/wards/{ward_id} (ward detail with latest station readings + attribution breakdown)
+2. Backend: GET /cities/{city_id}/wards — already exists in Module 02, but add AQI enrichment (join latest station readings avg per ward)
+3. Frontend: Leaflet map on Dashboard showing ward polygons coloured by AQI level (use ward geometry from API)
+4. Frontend: /wards/:id page — ward detail card (AQI, attribution pie chart, station readings table, advisory count for ward)
+5. Wire /wards/:id route in App.tsx (replace placeholder)
+6. Tests (≥3)
 
-After building everything, run ruff format . && ruff check . to ensure lint is clean before committing. Then update SESSION_LOG.md with what was done and add the Module 08 session prompt at the bottom. Commit everything and push.
+After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md with what was done and add the Module 09 session prompt at the bottom. Commit everything.
 ```
 
 ---

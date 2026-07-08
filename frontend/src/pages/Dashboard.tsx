@@ -7,6 +7,7 @@ import { fetchCities, fetchCity } from "@/features/cities/api";
 import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
 import { fetchPendingCount } from "@/features/enforcement/api";
+import { fetchAdvisoryCount } from "@/features/advisory/api";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -74,6 +75,13 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: advisoryCount } = useQuery({
+    queryKey: ["advisory-count", selectedCityId],
+    queryFn: () => fetchAdvisoryCount(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const displayCity = selectedCity;
   const currentAqi = forecast?.points[0]?.predicted_aqi;
 
@@ -98,8 +106,8 @@ export default function Dashboard() {
     },
     {
       label: "Advisories Sent",
-      value: "—",
-      desc: "Last 24 h",
+      value: advisoryCount != null ? String(advisoryCount) : "—",
+      desc: "Total issued",
       color: "text-green-400",
     },
   ];

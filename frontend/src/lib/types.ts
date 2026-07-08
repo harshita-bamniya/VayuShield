@@ -53,15 +53,20 @@ export interface EnforcementItem {
   status: EnforcementStatus;
 }
 
-export type AdvisoryChannel = "whatsapp" | "web";
+export type AdvisoryChannel = "web" | "sms" | "push";
 
 export interface Advisory {
   id: string;
-  wardId: string;
-  ts: string;
-  aqiValue: number;
-  messageText: string;
-  deliveryStatus: "sent" | "failed" | "pending";
+  city_id: string;
+  ward_id: string | null;
+  language: string;
+  title: string;
+  body: string;
+  aqi_level: string;
+  dominant_source: string | null;
+  channel: AdvisoryChannel;
+  sent_at: string | null;
+  created_at: string;
 }
 
 export interface ApiEnvelope<T> {
