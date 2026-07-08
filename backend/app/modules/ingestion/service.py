@@ -1,6 +1,6 @@
 """Ingestion service layer — orchestrates connectors → repository for Module 03."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,8 @@ from app.modules.cities.repository import get_city_by_id, get_stations_for_city
 from app.modules.ingestion import repository as repo
 from app.modules.ingestion.connectors import (
     caaqms,
-    weather as weather_connector,
+)
+from app.modules.ingestion.connectors import (
     fire_hotspots as fire_connector,
 )
 from app.modules.ingestion.schemas import (
@@ -21,14 +22,13 @@ from app.modules.ingestion.schemas import (
 )
 from app.schemas.common import PaginationMeta
 
-
 # ── Station readings ──────────────────────────────────────────────────────────
 
 
 async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     """Pull latest readings from all active stations in a city. Returns total inserted."""
     stations, _ = await get_stations_for_city(db, city_id, page=1, limit=100)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     readings: list[StationReadingIn] = []
     for station in stations:
         if not station.get("is_active"):

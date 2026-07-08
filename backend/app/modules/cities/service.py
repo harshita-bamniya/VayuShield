@@ -2,16 +2,15 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import NotFoundError
 from app.modules.cities import repository as repo
-from app.modules.cities.models import City
 from app.modules.cities.schemas import (
     CityCreate,
+    CityOut,
     StationCreate,
+    StationOut,
     WardCreate,
     WardOut,
-    StationOut,
-    CityOut,
 )
 from app.schemas.common import PaginationMeta
 

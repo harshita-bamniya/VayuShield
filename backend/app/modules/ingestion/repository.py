@@ -2,15 +2,13 @@
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.aqi import aqi_category, compute_aqi
-from app.modules.ingestion.models import EmissionSource, FireHotspot, StationReading, WeatherReading
 from app.modules.ingestion.schemas import StationReadingIn
-
 
 # ── Station Readings ──────────────────────────────────────────────────────────
 
@@ -25,8 +23,10 @@ async def bulk_insert_readings(db: AsyncSession, readings: list[StationReadingIn
         await db.execute(
             text(
                 """
-                INSERT INTO station_readings (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)
-                VALUES (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)
+                INSERT INTO station_readings
+                    (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)
+                VALUES
+                    (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)
                 ON CONFLICT DO NOTHING
                 """
             ),
@@ -126,8 +126,10 @@ async def bulk_insert_weather(db: AsyncSession, readings: list[dict]) -> int:
         await db.execute(
             text(
                 """
-                INSERT INTO weather_readings (id, city_id, ts, wind_speed, wind_dir, humidity, temp, pressure)
-                VALUES (:id, :city_id, :ts, :wind_speed, :wind_dir, :humidity, :temp, :pressure)
+                INSERT INTO weather_readings
+                    (id, city_id, ts, wind_speed, wind_dir, humidity, temp, pressure)
+                VALUES
+                    (:id, :city_id, :ts, :wind_speed, :wind_dir, :humidity, :temp, :pressure)
                 ON CONFLICT DO NOTHING
                 """
             ),
@@ -168,8 +170,11 @@ async def insert_fire_hotspot(
     await db.execute(
         text(
             """
-            INSERT INTO fire_hotspots (id, city_id, detected_at, geometry, confidence, source, frp, created_at)
-            VALUES (:id, :city_id, :detected_at, ST_GeomFromGeoJSON(:geom), :confidence, :source, :frp, NOW())
+            INSERT INTO fire_hotspots
+                (id, city_id, detected_at, geometry, confidence, source, frp, created_at)
+            VALUES
+                (:id, :city_id, :detected_at, ST_GeomFromGeoJSON(:geom),
+                 :confidence, :source, :frp, NOW())
             """
         ),
         {
@@ -264,8 +269,11 @@ async def create_emission_source(
         await db.execute(
             text(
                 """
-                INSERT INTO emission_sources (id, city_id, name, type, geometry, permit_status, created_at, updated_at)
-                VALUES (:id, :city_id, :name, :type, ST_GeomFromGeoJSON(:geom), :permit_status, NOW(), NOW())
+                INSERT INTO emission_sources
+                    (id, city_id, name, type, geometry, permit_status, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, :type, ST_GeomFromGeoJSON(:geom), :permit_status,
+                     NOW(), NOW())
                 """
             ),
             {
@@ -281,8 +289,10 @@ async def create_emission_source(
         await db.execute(
             text(
                 """
-                INSERT INTO emission_sources (id, city_id, name, type, permit_status, created_at, updated_at)
-                VALUES (:id, :city_id, :name, :type, :permit_status, NOW(), NOW())
+                INSERT INTO emission_sources
+                    (id, city_id, name, type, permit_status, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, :type, :permit_status, NOW(), NOW())
                 """
             ),
             {

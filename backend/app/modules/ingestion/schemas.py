@@ -6,7 +6,6 @@ from pydantic import BaseModel, field_validator
 
 from app.schemas.geo import validate_geojson_geometry
 
-
 # ── Station Readings ──────────────────────────────────────────────────────────
 
 

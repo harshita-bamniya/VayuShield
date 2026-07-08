@@ -8,6 +8,7 @@ Seeds:
 
 import json
 import uuid
+from datetime import UTC
 
 from passlib.context import CryptContext
 from sqlalchemy import text
@@ -122,8 +123,12 @@ async def _seed_delhi(session) -> None:
     await session.execute(
         text(
             """
-            INSERT INTO wards (id, city_id, name, geometry, population, vulnerable_site_flags, created_at, updated_at)
-            VALUES (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop, :flags::jsonb, NOW(), NOW())
+            INSERT INTO wards
+                (id, city_id, name, geometry, population,
+                 vulnerable_site_flags, created_at, updated_at)
+            VALUES
+                (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
+                 :flags::jsonb, NOW(), NOW())
             """
         ),
         {
@@ -138,8 +143,12 @@ async def _seed_delhi(session) -> None:
     await session.execute(
         text(
             """
-            INSERT INTO wards (id, city_id, name, geometry, population, vulnerable_site_flags, created_at, updated_at)
-            VALUES (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop, :flags::jsonb, NOW(), NOW())
+            INSERT INTO wards
+                (id, city_id, name, geometry, population,
+                 vulnerable_site_flags, created_at, updated_at)
+            VALUES
+                (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
+                 :flags::jsonb, NOW(), NOW())
             """
         ),
         {
@@ -156,8 +165,12 @@ async def _seed_delhi(session) -> None:
     await session.execute(
         text(
             """
-            INSERT INTO stations (id, city_id, ward_id, external_station_code, name, geometry, is_active, created_at, updated_at)
-            VALUES (:id, :city_id, :ward_id, :code, :name, ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
+            INSERT INTO stations
+                (id, city_id, ward_id, external_station_code, name,
+                 geometry, is_active, created_at, updated_at)
+            VALUES
+                (:id, :city_id, :ward_id, :code, :name,
+                 ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
             """
         ),
         {
@@ -172,8 +185,12 @@ async def _seed_delhi(session) -> None:
     await session.execute(
         text(
             """
-            INSERT INTO stations (id, city_id, ward_id, external_station_code, name, geometry, is_active, created_at, updated_at)
-            VALUES (:id, :city_id, :ward_id, :code, :name, ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
+            INSERT INTO stations
+                (id, city_id, ward_id, external_station_code, name,
+                 geometry, is_active, created_at, updated_at)
+            VALUES
+                (:id, :city_id, :ward_id, :code, :name,
+                 ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
             """
         ),
         {
@@ -194,7 +211,7 @@ async def _seed_ingestion_data(session) -> None:
     """Seed 7 days of hourly station readings + known Delhi emission sources."""
     import math
     import random
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # ── Emission sources ──────────────────────────────────────────────────────
     exists = await session.execute(
@@ -239,8 +256,11 @@ async def _seed_ingestion_data(session) -> None:
         await session.execute(
             text(
                 """
-                INSERT INTO emission_sources (id, city_id, name, type, geometry, permit_status, created_at, updated_at)
-                VALUES (:id, :city_id, :name, :type, ST_GeomFromGeoJSON(:geom), :permit_status, NOW(), NOW())
+                INSERT INTO emission_sources
+                    (id, city_id, name, type, geometry, permit_status, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, :type, ST_GeomFromGeoJSON(:geom),
+                     :permit_status, NOW(), NOW())
                 """
             ),
             {
@@ -254,7 +274,7 @@ async def _seed_ingestion_data(session) -> None:
         )
 
     # ── Historical station readings (7 days, hourly) ──────────────────────────
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     start = now - timedelta(days=7)
 
     def make_reading(station_id: str, ts: datetime) -> dict:
@@ -308,9 +328,11 @@ async def _seed_ingestion_data(session) -> None:
             for r in batch:
                 await session.execute(
                     text(
-                        "INSERT INTO station_readings (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale) "
-                        "VALUES (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false) "
-                        "ON CONFLICT DO NOTHING"
+                        "INSERT INTO station_readings"
+                        " (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)"
+                        " VALUES"
+                        " (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)"
+                        " ON CONFLICT DO NOTHING"
                     ),
                     r,
                 )
@@ -320,9 +342,11 @@ async def _seed_ingestion_data(session) -> None:
     for r in batch:
         await session.execute(
             text(
-                "INSERT INTO station_readings (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale) "
-                "VALUES (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false) "
-                "ON CONFLICT DO NOTHING"
+                "INSERT INTO station_readings"
+                " (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)"
+                " VALUES"
+                " (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)"
+                " ON CONFLICT DO NOTHING"
             ),
             r,
         )

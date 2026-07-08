@@ -15,9 +15,7 @@ Mock data characteristics:
 
 import math
 import random
-from datetime import datetime, timezone
-
-import httpx
+from datetime import datetime
 
 from app.core.logging import logger
 from app.modules.ingestion.schemas import StationReadingIn

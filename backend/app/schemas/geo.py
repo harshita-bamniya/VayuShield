@@ -3,8 +3,6 @@
 import json
 from typing import Any
 
-from pydantic import field_validator
-
 VALID_GEOMETRY_TYPES = {
     "Point",
     "MultiPoint",

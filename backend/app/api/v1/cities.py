@@ -13,7 +13,7 @@ from app.modules.cities.schemas import (
     WardCreate,
     WardOut,
 )
-from app.schemas.common import ApiEnvelope, PaginationMeta
+from app.schemas.common import ApiEnvelope
 
 router = APIRouter(tags=["cities"])
 

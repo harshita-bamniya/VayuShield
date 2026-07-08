@@ -6,7 +6,7 @@ and surface pressure for a given lat/lon. Used by the weather polling job.
 Open-Meteo API docs: https://open-meteo.com/en/docs
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -29,14 +29,16 @@ async def fetch_weather(
 
     Returns a list of dicts ready for bulk_insert_weather().
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start_date = (now - timedelta(hours=hours_back)).strftime("%Y-%m-%d")
     end_date = now.strftime("%Y-%m-%d")
 
     params = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "windspeed_10m,winddirection_10m,relativehumidity_2m,temperature_2m,surface_pressure",
+        "hourly": (
+            "windspeed_10m,winddirection_10m,relativehumidity_2m,temperature_2m,surface_pressure"
+        ),
         "wind_speed_unit": "ms",
         "timezone": "UTC",
         "start_date": start_date,
@@ -58,7 +60,7 @@ async def fetch_weather(
 
     readings = []
     for i, ts_str in enumerate(times):
-        ts = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
+        ts = datetime.fromisoformat(ts_str).replace(tzinfo=UTC)
         if ts > now:
             continue
         readings.append(

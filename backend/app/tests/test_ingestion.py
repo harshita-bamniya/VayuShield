@@ -96,7 +96,7 @@ async def test_create_emission_source(client: AsyncClient, sysadmin_token: str) 
 
 @pytest.mark.asyncio
 async def test_aqi_computation() -> None:
-    from app.core.aqi import compute_aqi, aqi_category, pm25_to_aqi
+    from app.core.aqi import aqi_category, compute_aqi, pm25_to_aqi
 
     assert pm25_to_aqi(0) == 0
     assert pm25_to_aqi(30) == 50

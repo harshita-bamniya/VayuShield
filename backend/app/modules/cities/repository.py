@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.cities.models import City, Station, Ward
 
-
 # ── Cities ────────────────────────────────────────────────────────────────────
 
 
@@ -104,8 +103,12 @@ async def create_ward(
         await db.execute(
             text(
                 """
-                INSERT INTO wards (id, city_id, name, geometry, population, vulnerable_site_flags, created_at, updated_at)
-                VALUES (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :population, :flags::jsonb, NOW(), NOW())
+                INSERT INTO wards
+                    (id, city_id, name, geometry, population,
+                     vulnerable_site_flags, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :population,
+                     :flags::jsonb, NOW(), NOW())
                 """
             ),
             {
@@ -121,8 +124,10 @@ async def create_ward(
         await db.execute(
             text(
                 """
-                INSERT INTO wards (id, city_id, name, population, vulnerable_site_flags, created_at, updated_at)
-                VALUES (:id, :city_id, :name, :population, :flags::jsonb, NOW(), NOW())
+                INSERT INTO wards
+                    (id, city_id, name, population, vulnerable_site_flags, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, :population, :flags::jsonb, NOW(), NOW())
                 """
             ),
             {
@@ -184,8 +189,12 @@ async def create_station(
         await db.execute(
             text(
                 """
-                INSERT INTO stations (id, city_id, ward_id, external_station_code, name, geometry, is_active, created_at, updated_at)
-                VALUES (:id, :city_id, :ward_id, :code, :name, ST_GeomFromGeoJSON(:geom), :is_active, NOW(), NOW())
+                INSERT INTO stations
+                    (id, city_id, ward_id, external_station_code, name,
+                     geometry, is_active, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :ward_id, :code, :name,
+                     ST_GeomFromGeoJSON(:geom), :is_active, NOW(), NOW())
                 """
             ),
             {
@@ -202,8 +211,11 @@ async def create_station(
         await db.execute(
             text(
                 """
-                INSERT INTO stations (id, city_id, ward_id, external_station_code, name, is_active, created_at, updated_at)
-                VALUES (:id, :city_id, :ward_id, :code, :name, :is_active, NOW(), NOW())
+                INSERT INTO stations
+                    (id, city_id, ward_id, external_station_code, name,
+                     is_active, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :ward_id, :code, :name, :is_active, NOW(), NOW())
                 """
             ),
             {

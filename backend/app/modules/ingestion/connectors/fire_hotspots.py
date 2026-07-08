@@ -12,7 +12,7 @@ Falls back to an empty list (no fire data) if key is not configured.
 
 import csv
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -66,9 +66,7 @@ def _parse_firms_csv(csv_text: str, city_id: str) -> list[dict]:
             hour = int(acq_time[:2]) if len(acq_time) >= 2 else 0
             minute = int(acq_time[2:4]) if len(acq_time) >= 4 else 0
             dt_str = f"{acq_date} {hour:02d}:{minute:02d}:00"
-            detected_at = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(
-                tzinfo=timezone.utc
-            )
+            detected_at = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
             confidence_raw = row.get("confidence", "50")
             # VIIRS confidence: 'l', 'n', 'h' → map to 33, 66, 90
             conf_map = {"l": 33.0, "n": 66.0, "h": 90.0}

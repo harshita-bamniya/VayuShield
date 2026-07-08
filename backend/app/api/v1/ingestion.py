@@ -13,7 +13,7 @@ from app.modules.ingestion.schemas import (
     LatestReadingOut,
     WeatherReadingOut,
 )
-from app.schemas.common import ApiEnvelope, PaginationMeta
+from app.schemas.common import ApiEnvelope
 
 router = APIRouter(tags=["ingestion"])
 

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: timescale/timescaledb-ha:pg16-latest
         env:
           POSTGRES_USER: vayushield
           POSTGRES_PASSWORD: vayushield_dev
@@ -42,6 +42,11 @@ jobs:
         run: |
           ruff format --check .
           ruff check .
+      - name: Enable PostGIS and TimescaleDB extensions
+        run: |
+          psql postgresql://vayushield:vayushield_dev@localhost:5432/vayushield \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
+            -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
       - name: Run migrations
         working-directory: backend
         env:
