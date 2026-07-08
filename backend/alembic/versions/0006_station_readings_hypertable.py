@@ -39,13 +39,18 @@ def upgrade() -> None:
     )
     op.create_index("ix_station_readings_station_id", "station_readings", ["station_id"])
     op.create_index("ix_station_readings_ts", "station_readings", ["ts"])
-    # Promote to TimescaleDB hypertable partitioned by ts (chunk_time_interval = 1 day)
-    op.execute(
-        sa.text(
-            "SELECT create_hypertable('station_readings', 'ts', "
-            "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
+    # Promote to TimescaleDB hypertable — skips silently if TimescaleDB is not installed
+    # (allows CI to run against plain PostgreSQL + PostGIS without TimescaleDB)
+    conn = op.get_bind()
+    try:
+        conn.execute(
+            sa.text(
+                "SELECT create_hypertable('station_readings', 'ts', "
+                "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
+            )
         )
-    )
+    except Exception:
+        pass
 
 
 def downgrade() -> None:

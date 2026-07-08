@@ -35,12 +35,16 @@ def upgrade() -> None:
     )
     op.create_index("ix_weather_readings_city_id", "weather_readings", ["city_id"])
     op.create_index("ix_weather_readings_ts", "weather_readings", ["ts"])
-    op.execute(
-        sa.text(
-            "SELECT create_hypertable('weather_readings', 'ts', "
-            "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
+    conn = op.get_bind()
+    try:
+        conn.execute(
+            sa.text(
+                "SELECT create_hypertable('weather_readings', 'ts', "
+                "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
+            )
         )
-    )
+    except Exception:
+        pass
 
 
 def downgrade() -> None:
