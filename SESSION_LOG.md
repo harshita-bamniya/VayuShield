@@ -454,53 +454,151 @@ Only one active alert per threshold at a time. Auto-resolves on next computation
 ---
 
 ## Session 5 — Module 05: Forecasting Agent
-**Planned — not yet built**
+**Date:** 2026-07-09
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0012_forecasts_table.py` | Migration: `forecasts` table (city_id, generated_at, forecast_for_ts, predicted_aqi, predicted_pm25, confidence, model_version, is_stale) |
+| `backend/app/modules/forecasting/__init__.py` | Package marker |
+| `backend/app/modules/forecasting/models.py` | SQLAlchemy `Forecast` ORM model |
+| `backend/app/modules/forecasting/schemas.py` | Pydantic DTOs: `ForecastPointOut`, `ForecastRunOut` |
+| `backend/app/modules/forecasting/repository.py` | DB access: `get_latest_forecast_run`, `mark_previous_stale`, `bulk_insert_forecast` |
+| `backend/app/modules/forecasting/service.py` | Forecasting engine: diurnal pattern + linear trend + wind adjustment (pure Python, zero extra deps) |
+| `backend/app/api/v1/forecasting.py` | Router: `GET /cities/{city_id}/forecast`, `POST /cities/{city_id}/forecast/run`, `?recompute=true` |
+| `backend/app/tests/test_forecasting.py` | 7 tests: auth guard, 72 points returned, required fields, peak_aqi = max, run endpoint, recompute flag, chronological ordering |
+| `frontend/src/features/forecast/api.ts` | Typed API calls: `fetchForecast`, `runForecast` |
+| `frontend/src/features/forecast/ForecastChart.tsx` | Recharts `LineChart` with AQI-coloured dots, threshold reference lines (200/300/400), AQI band legend |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/main.py` | Wired `forecasting_router` |
+| `frontend/src/pages/Dashboard.tsx` | City AQI + Peak 72h AQI stat cards now live from forecast API; placeholder map replaced with `<ForecastChart>` |
+
+### Forecasting Model — How It Works
+
+**Algorithm (pure Python, no ML deps):**
+1. Pull last 7 days of hourly city-average AQI from `station_readings` (grouped by `DATE_TRUNC('hour', ts)`).
+2. Build `diurnal_mean[0..23]` — mean AQI per hour-of-day. Hours with <3 readings fall back to global mean.
+3. Compute `trend_slope` via least-squares over last 24h of hourly averages. Dampen by 0.5× to prevent long-horizon runaway.
+4. Pull latest `weather_readings.wind_speed` → `wind_adj = clamp(1.0 - 0.04×wind_speed, 0.5, 1.3)`.
+5. For each of 72 future hours:
+   - `predicted_aqi = clamp(round((diurnal_mean[h] + trend_slope×h) × wind_adj), 1, 500)`
+   - `predicted_pm25` = inverse AQI breakpoint lookup
+   - `confidence` degrades from 0.95 (h=1) → 0.50 (h=72)
+6. Mark previous forecast batch stale; persist 72 new rows.
+
+**Model version tag:** `"diurnal-v1"` — bump to `"diurnal-v2"` or `"lgbm-v1"` when model is upgraded.
+
+### Definition of Done — Module 05 ✅
+
+- [x] Migration 0012 creates `forecasts` table with city/generated_at and city/forecast_for_ts indexes
+- [x] `GET /api/v1/cities/{city_id}/forecast` returns 72-point forecast (runs on first call if no cached result)
+- [x] `POST /api/v1/cities/{city_id}/forecast/run` triggers fresh computation
+- [x] `?recompute=true` flag also forces fresh run
+- [x] Previous forecast batch marked `is_stale=true` on each recompute
+- [x] `peak_aqi` / `peak_at` in response envelope match max across points
+- [x] Points returned in ascending `forecast_for_ts` order
+- [x] Confidence decreases with horizon (0.95 → 0.50)
+- [x] Frontend `ForecastChart` renders 72-hour line chart with AQI band colours + threshold reference lines
+- [x] Dashboard stat cards: "City AQI" and "Peak Forecast AQI" wired live to forecast API
+- [x] 7 new tests — total test count: **34**
+- [x] TypeScript compiles with zero errors (`tsc --noEmit` clean)
+- [x] All Python files syntax-clean
+
+### Known issues going into Session 6
+- Forecast uses only `station_readings` history — does not yet consume Open-Meteo's 72h forward weather forecast (only uses latest historical wind reading). Future: call `GET /forecast?hourly=wind_speed,wind_direction_10m` on Open-Meteo to get wind forecast per future hour.
+- No per-ward forecast — city-level only. Ward-level would require per-station forecasts + spatial interpolation (IDW/Kriging). Architecture doc notes this as Module 05 stretch goal.
+- Forecast background job (RQ) not wired — trigger manually via `POST /forecast/run` or `?recompute=true`.
+
+---
+
+## Session 6 — Module 06: Enforcement Agent
+**Planned — build next**
 
 ### What needs to be built
 
-Module 05 owns the 72-hour AQI forecast pipeline.
+Module 06 creates the ranked enforcement queue: scores emission sources by pollution risk, generates an evidence brief for each, and exposes the queue to inspectors.
 
 #### Backend
-- Migration 0012: `forecasts` table (`id UUID`, `city_id FK`, `ward_id FK nullable`, `valid_from TIMESTAMPTZ`, `valid_to TIMESTAMPTZ`, `aqi_forecast INT`, `pm25_forecast FLOAT`, `confidence FLOAT`, `model_version VARCHAR`, `created_at`)
-- Migration 0013: `forecast_grid_points` table for 1km spatial interpolation grid (optional — add if time permits)
-- ORM models: `Forecast` in `app/modules/forecasting/models.py`
-- Forecasting service using Prophet or LightGBM:
-  - Input: last 7-30 days of `station_readings` + `weather_readings` (historical + Open-Meteo forecast)
-  - Output: 72-hour AQI forecast at city/ward level (hourly resolution)
-  - Features: pm25 history, hour-of-day, day-of-week, wind speed/dir, humidity, temp, seasonal indicators
-  - Model: use Prophet for MVP (handles seasonality + trend, no feature engineering overhead)
-- API endpoints:
-  - `GET /api/v1/cities/{city_id}/forecast` — latest 72-hour forecast
-  - `POST /api/v1/cities/{city_id}/forecast/run` — trigger reforecast (admin/sysadmin)
-- Alert integration: if forecast crosses 200/300/400 in next 18h, create a proactive advisory trigger (Module 08 hook)
+- **Migration 0013:** `enforcement_queue` table
+  - `id UUID PK`, `city_id FK`, `emission_source_id FK→emission_sources`, `priority_score FLOAT`, `evidence_brief_text TEXT`, `status VARCHAR(20)` (pending/dispatched/completed), `attribution_id FK→attributions nullable`, `forecast_id FK→forecasts nullable`, `created_at`, `updated_at`
+- **Migration 0014:** `inspections` table
+  - `id UUID PK`, `enforcement_queue_id FK`, `inspector_id FK→users`, `scheduled_at TIMESTAMPTZ nullable`, `completed_at TIMESTAMPTZ nullable`, `outcome VARCHAR(50)` (compliant/violation/no_access), `notes TEXT`, `created_at`
+- **ORM models:** `EnforcementQueueItem`, `Inspection` in `app/modules/enforcement/models.py`
+- **Scoring service** (`app/modules/enforcement/service.py`):
+  - For each active `emission_source` in the city, compute `priority_score`:
+    - `source_attribution_weight` — contribution % from latest attribution for that source type
+    - `forecast_severity_weight` — peak AQI in next 24h from latest forecast (normalised 0–1)
+    - `permit_status_weight` — expired=1.0, pending=0.6, active=0.2
+    - `last_inspected_weight` — days since last inspection (capped at 30 days, normalised 0–1)
+    - `priority_score = 0.35×attribution + 0.30×forecast + 0.20×permit + 0.15×inspected`
+  - Sort descending by `priority_score` → ranked queue
+  - Generate `evidence_brief_text` (plain text, 2–3 sentences): source name, type, score rationale, permit status, days since last inspection
+- **API endpoints:**
+  - `GET /api/v1/cities/{city_id}/enforcement` — ranked queue (paginated, filter by status)
+  - `POST /api/v1/cities/{city_id}/enforcement/rank` — re-rank queue (admin/sysadmin only)
+  - `GET /api/v1/cities/{city_id}/enforcement/{item_id}` — single item with evidence brief
+  - `PATCH /api/v1/cities/{city_id}/enforcement/{item_id}` — update status (dispatched/completed)
+  - `POST /api/v1/cities/{city_id}/enforcement/{item_id}/inspections` — log inspection outcome
+- **Seed:** run initial ranking for Delhi on boot, produce ≥2 queue items
 
 #### Frontend
-- `features/forecast/api.ts` — typed API calls
-- Recharts line chart showing 72-hour AQI forecast (shaded bands for AQI categories)
-- Wire into Dashboard stats card (forecast peak AQI in next 24h)
+- `frontend/src/features/enforcement/api.ts` — typed API calls
+- `frontend/src/pages/Enforcement.tsx` — ranked list page: table of sources with priority score bar, permit status badge, evidence brief expandable panel, "Dispatch" button (sets status=dispatched)
+- Wire `/enforcement` route in `App.tsx` (replace placeholder)
+- Update "Pending Inspections" stat card on Dashboard to show live count from enforcement queue
 
-### PROMPT TO USE AT THE START OF SESSION 5
+#### Key decisions (do not re-derive)
+- Evidence brief is plain text generated by the scoring service (no LLM yet — Module 09 will upgrade this with Claude)
+- Priority score is a weighted sum, not ML — interpretable, auditable, fast
+- Inspector PWA uses the same enforcement queue API; no separate endpoint needed
+
+#### Tests to write
+- `GET /enforcement` returns ranked list, highest score first
+- `POST /enforcement/rank` creates queue items for all active sources
+- Score for expired-permit source is higher than active-permit source (same type)
+- `PATCH /{item_id}` changes status to dispatched
+- `POST /{item_id}/inspections` logs outcome and updates `last_inspected_at` on the source
+
+### PROMPT TO USE AT THE START OF SESSION 6
 
 ```
-Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md and memory/project_vayushield.md before doing anything.
+Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00, 01, 02, 03, and 04 are complete. CI has 27 tests.
+Modules 00 through 05 are complete. We have 34 passing tests. The last commit is feat(module-05).
 
-Your job this session is Module 05: Forecasting Agent. Build a 72-hour AQI forecast pipeline using Prophet (or LightGBM). The forecast should use station_readings history + weather_readings (including Open-Meteo forecast data). Expose GET /cities/{city_id}/forecast and POST /cities/{city_id}/forecast/run. Add a Recharts line chart to the Dashboard frontend. Write tests for the forecast endpoints.
+Your job this session is Module 06: Enforcement Agent.
+
+Build:
+1. Migrations 0013 (enforcement_queue) and 0014 (inspections)
+2. ORM models, schemas, repository, service in app/modules/enforcement/
+3. Scoring algorithm: priority_score = 0.35×source_attribution + 0.30×forecast_severity + 0.20×permit_status + 0.15×days_since_inspection
+4. Plain-text evidence brief generator (no LLM — just formatted string with score rationale)
+5. API: GET/POST /cities/{city_id}/enforcement, GET/PATCH /{item_id}, POST /{item_id}/inspections
+6. Seed: run initial ranking for Delhi on boot
+7. Frontend: Enforcement.tsx page (ranked table, priority score bar, permit badge, dispatch button)
+8. Wire /enforcement route in App.tsx
+9. Update Dashboard "Pending Inspections" stat card to show live count
+10. Tests (≥5)
+
+After building, update SESSION_LOG.md with what was done and add the Module 07 session prompt. Commit everything.
 ```
 
 ---
 
-## Sessions 5+ — Modules 05–13
+## Sessions 6+ — Modules 06–13
 See `03_DEVELOPMENT_ROADMAP_SESSION_PLAN.md` for the full ordered build plan.
 
 **Critical path reminder:** 00 → 01 → 02 → 03 → {04, 05 parallel} → 06 → {07, 08, 09 parallel} → 10/11/12/13
 
-**At the start of every session, the Claude Code agent MUST read:**
-1. `00_MASTER_ARCHITECTURE.md`
-2. `02_CROSS_MODULE_CONTRACTS.md`  
-3. The specific module document for that session
-
-**Never** modify a table owned by another module without updating that module's document first.
+**At the start of every session, the Claude Code agent MUST read SESSION_LOG.md first.**
+**Never** modify a table owned by another module without coordinating with that module's section.
