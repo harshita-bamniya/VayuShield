@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.attribution import router as attribution_router
+from app.api.v1.forecasting import router as forecasting_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cities import router as cities_router
 from app.api.v1.health import router as health_router
@@ -69,3 +70,4 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(cities_router, prefix="/api/v1")
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(attribution_router, prefix="/api/v1")
+app.include_router(forecasting_router, prefix="/api/v1")

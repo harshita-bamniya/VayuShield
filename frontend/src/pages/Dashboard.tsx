@@ -4,13 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
 import { fetchCities, fetchCity } from "@/features/cities/api";
-
-const STAT_CARDS = [
-  { label: "City AQI", value: "—", desc: "Live", color: "text-yellow-400" },
-  { label: "Active Alerts", value: "—", desc: "Pending review", color: "text-red-400" },
-  { label: "Pending Inspections", value: "—", desc: "In queue", color: "text-orange-400" },
-  { label: "Advisories Sent", value: "—", desc: "Last 24 h", color: "text-green-400" },
-];
+import { fetchForecast } from "@/features/forecast/api";
+import ForecastChart from "@/features/forecast/ForecastChart";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -19,13 +14,29 @@ const NAV_ITEMS = [
   { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
 ];
 
+function aqiCategory(aqi: number): string {
+  if (aqi <= 50) return "Good";
+  if (aqi <= 100) return "Satisfactory";
+  if (aqi <= 200) return "Moderate";
+  if (aqi <= 300) return "Poor";
+  if (aqi <= 400) return "Very Poor";
+  return "Severe";
+}
+
+function aqiColor(aqi: number): string {
+  if (aqi <= 50) return "text-green-400";
+  if (aqi <= 100) return "text-lime-400";
+  if (aqi <= 200) return "text-yellow-400";
+  if (aqi <= 300) return "text-orange-400";
+  if (aqi <= 400) return "text-red-400";
+  return "text-purple-400";
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { selectedCityId, selectedCity, setSelectedCity } = useCities();
 
-  // Sysadmin: fetch all cities to let them select one.
-  // City admin/inspector: fetch their own city directly.
   const isSysadmin = user?.role === "sysadmin";
 
   const { data: cities } = useQuery({
@@ -40,18 +51,50 @@ export default function Dashboard() {
     enabled: !isSysadmin && !!user?.city_id,
   });
 
-  // Auto-select city when data loads
   useEffect(() => {
     if (!selectedCityId) {
-      if (userCity) {
-        setSelectedCity(userCity);
-      } else if (cities && cities.length > 0) {
-        setSelectedCity(cities[0]);
-      }
+      if (userCity) setSelectedCity(userCity);
+      else if (cities && cities.length > 0) setSelectedCity(cities[0]);
     }
   }, [cities, userCity, selectedCityId, setSelectedCity]);
 
+  // Forecast query — runs once city is selected
+  const { data: forecast, isLoading: forecastLoading } = useQuery({
+    queryKey: ["forecast", selectedCityId],
+    queryFn: () => fetchForecast(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 15, // treat fresh for 15 min
+  });
+
   const displayCity = selectedCity;
+  const currentAqi = forecast?.points[0]?.predicted_aqi;
+
+  const statCards = [
+    {
+      label: "City AQI",
+      value: currentAqi != null ? String(currentAqi) : "—",
+      desc: currentAqi != null ? aqiCategory(currentAqi) : "Loading…",
+      color: currentAqi != null ? aqiColor(currentAqi) : "text-slate-400",
+    },
+    {
+      label: "Peak Forecast AQI",
+      value: forecast?.peak_aqi != null ? String(forecast.peak_aqi) : "—",
+      desc: "Next 72 hours",
+      color: forecast?.peak_aqi != null ? aqiColor(forecast.peak_aqi) : "text-slate-400",
+    },
+    {
+      label: "Pending Inspections",
+      value: "—",
+      desc: "In queue",
+      color: "text-orange-400",
+    },
+    {
+      label: "Advisories Sent",
+      value: "—",
+      desc: "Last 24 h",
+      color: "text-green-400",
+    },
+  ];
 
   async function handleLogout() {
     await logout();
@@ -119,7 +162,6 @@ export default function Dashboard() {
               </span>
             )}
           </div>
-          {/* Sysadmin: city selector */}
           {isSysadmin && cities && cities.length > 1 && (
             <select
               className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -145,8 +187,8 @@ export default function Dashboard() {
         {/* Content */}
         <main className="flex-1 overflow-auto p-6">
           {/* Stat cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {STAT_CARDS.map((card) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {statCards.map((card) => (
               <div
                 key={card.label}
                 className="bg-slate-900 border border-slate-800 rounded-xl p-5"
@@ -156,20 +198,30 @@ export default function Dashboard() {
                 </p>
                 <p className={`text-3xl font-bold ${card.color} mb-1`}>{card.value}</p>
                 <p className="text-xs text-slate-500">
-                  {displayCity ? `${displayCity.name} · ` : ""}{card.desc}
+                  {displayCity ? `${displayCity.name} · ` : ""}
+                  {card.desc}
                 </p>
               </div>
             ))}
           </div>
 
-          {/* Placeholder map/chart area */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center justify-center min-h-64">
-            <div className="text-center text-slate-600">
-              <p className="text-4xl mb-3">🗺️</p>
-              <p className="text-sm font-medium">Attribution Map</p>
-              <p className="text-xs mt-1">Available in Module 08 — Admin Dashboard</p>
+          {/* Forecast chart */}
+          {forecastLoading || !selectedCityId ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center justify-center min-h-64">
+              <div className="text-center text-slate-600">
+                <p className="text-4xl mb-3">📈</p>
+                <p className="text-sm font-medium">
+                  {selectedCityId ? "Loading forecast…" : "Select a city to see the forecast"}
+                </p>
+              </div>
             </div>
-          </div>
+          ) : forecast ? (
+            <ForecastChart
+              points={forecast.points}
+              generatedAt={forecast.generated_at}
+              peakAqi={forecast.peak_aqi}
+            />
+          ) : null}
         </main>
       </div>
     </div>
