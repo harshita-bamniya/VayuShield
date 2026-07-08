@@ -79,7 +79,7 @@ def _wind_alignment(source_bearing: float, wind_dir: float | None) -> float:
 
 def _distance_decay(distance_km: float) -> float:
     """Inverse-square decay with a floor at 0.1 to avoid division by zero."""
-    return 1.0 / max(distance_km ** 2, 0.01)
+    return 1.0 / max(distance_km**2, 0.01)
 
 
 def _wind_description(wind_dir: float | None, wind_speed: float | None) -> str | None:
@@ -147,8 +147,12 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
         {"city_id": city_id},
     )
     weather_row = weather_result.fetchone()
-    wind_speed: float | None = float(weather_row[0]) if weather_row and weather_row[0] is not None else None
-    wind_dir: float | None = float(weather_row[1]) if weather_row and weather_row[1] is not None else None
+    wind_speed: float | None = (
+        float(weather_row[0]) if weather_row and weather_row[0] is not None else None
+    )
+    wind_dir: float | None = (
+        float(weather_row[1]) if weather_row and weather_row[1] is not None else None
+    )
 
     # 3. City centroid (average station location) used as the "receptor point"
     centroid = await _get_city_centroid(db, city_id)
@@ -293,7 +297,9 @@ async def _evaluate_alerts(
                 await repo.resolve_alert(db, existing, now)
 
 
-async def get_latest_attribution_ranking(db: AsyncSession, city_id: str) -> AttributionRankingOut | None:
+async def get_latest_attribution_ranking(
+    db: AsyncSession, city_id: str
+) -> AttributionRankingOut | None:
     attr = await repo.get_latest_attribution(db, city_id)
     if attr is None:
         return None
@@ -306,7 +312,11 @@ async def get_latest_attribution_ranking(db: AsyncSession, city_id: str) -> Attr
         "other": attr.other_pct or 0,
     }
     ranked = sorted(
-        [RankedSource(source_type=k, contribution_pct=v, rank=0) for k, v in breakdown.items() if v > 0],
+        [
+            RankedSource(source_type=k, contribution_pct=v, rank=0)
+            for k, v in breakdown.items()
+            if v > 0
+        ],
         key=lambda x: x.contribution_pct,
         reverse=True,
     )

@@ -21,6 +21,8 @@ class Forecast(Base):
     predicted_aqi: Mapped[int] = mapped_column(Integer, nullable=False)
     predicted_pm25: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    model_version: Mapped[str] = mapped_column(String(50), nullable=False, server_default="diurnal-v1")
+    model_version: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="diurnal-v1"
+    )
     is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

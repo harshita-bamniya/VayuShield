@@ -18,7 +18,9 @@ def upgrade() -> None:
     op.create_table(
         "attributions",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("computed_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("aqi_at_computation", sa.Integer, nullable=True),
         sa.Column("dominant_source", sa.String(50), nullable=True),
@@ -34,7 +36,9 @@ def upgrade() -> None:
         sa.Column("notes", sa.Text, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_attributions_city_id_computed_at", "attributions", ["city_id", "computed_at"])
+    op.create_index(
+        "ix_attributions_city_id_computed_at", "attributions", ["city_id", "computed_at"]
+    )
 
 
 def downgrade() -> None:

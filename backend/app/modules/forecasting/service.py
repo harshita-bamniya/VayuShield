@@ -90,9 +90,8 @@ async def run_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut:
         if aqi is not None:
             hourly_buckets[ts.hour].append(aqi)
 
-    global_mean = (
-        sum(v for vals in hourly_buckets.values() for v in vals)
-        / max(1, sum(len(v) for v in hourly_buckets.values()))
+    global_mean = sum(v for vals in hourly_buckets.values() for v in vals) / max(
+        1, sum(len(v) for v in hourly_buckets.values())
     )
     diurnal_mean: dict[int, float] = {
         h: (sum(vals) / len(vals)) if len(vals) >= 3 else global_mean

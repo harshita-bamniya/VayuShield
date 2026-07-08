@@ -18,11 +18,18 @@ def upgrade() -> None:
     op.create_table(
         "aqi_alerts",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("alert_level", sa.String(20), nullable=False),   # "poor" | "very_poor" | "severe"
-        sa.Column("threshold", sa.Integer, nullable=False),         # 200 | 300 | 400
-        sa.Column("aqi_value", sa.Integer, nullable=False),         # observed AQI that triggered
-        sa.Column("station_id", sa.String(36), sa.ForeignKey("stations.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column("alert_level", sa.String(20), nullable=False),  # "poor" | "very_poor" | "severe"
+        sa.Column("threshold", sa.Integer, nullable=False),  # 200 | 300 | 400
+        sa.Column("aqi_value", sa.Integer, nullable=False),  # observed AQI that triggered
+        sa.Column(
+            "station_id",
+            sa.String(36),
+            sa.ForeignKey("stations.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("dominant_source", sa.String(50), nullable=True),
         sa.Column("triggered_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),

@@ -19,9 +19,7 @@ async def get_latest_attribution(db: AsyncSession, city_id: str) -> Attribution 
     return result.scalar_one_or_none()
 
 
-async def list_attributions(
-    db: AsyncSession, city_id: str, limit: int = 24
-) -> list[Attribution]:
+async def list_attributions(db: AsyncSession, city_id: str, limit: int = 24) -> list[Attribution]:
     result = await db.execute(
         select(Attribution)
         .where(Attribution.city_id == city_id)

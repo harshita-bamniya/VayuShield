@@ -15,9 +15,7 @@ async def get_latest_forecast_run(
     """Return (generated_at, points) for the most recent forecast run."""
     # Find latest generated_at for this city
     result = await db.execute(
-        text(
-            "SELECT MAX(generated_at) FROM forecasts WHERE city_id = :city_id"
-        ),
+        text("SELECT MAX(generated_at) FROM forecasts WHERE city_id = :city_id"),
         {"city_id": city_id},
     )
     latest_gen = result.scalar_one_or_none()

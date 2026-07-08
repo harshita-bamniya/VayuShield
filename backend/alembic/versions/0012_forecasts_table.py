@@ -18,7 +18,9 @@ def upgrade() -> None:
     op.create_table(
         "forecasts",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "city_id", sa.String(36), sa.ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("forecast_for_ts", sa.DateTime(timezone=True), nullable=False),
         sa.Column("predicted_aqi", sa.Integer, nullable=False),
@@ -29,7 +31,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_forecasts_city_id_generated_at", "forecasts", ["city_id", "generated_at"])
-    op.create_index("ix_forecasts_city_id_forecast_for_ts", "forecasts", ["city_id", "forecast_for_ts"])
+    op.create_index(
+        "ix_forecasts_city_id_forecast_for_ts", "forecasts", ["city_id", "forecast_for_ts"]
+    )
 
 
 def downgrade() -> None:
