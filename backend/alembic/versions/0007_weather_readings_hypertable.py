@@ -36,17 +36,16 @@ def upgrade() -> None:
     op.create_index("ix_weather_readings_city_id", "weather_readings", ["city_id"])
     op.create_index("ix_weather_readings_ts", "weather_readings", ["ts"])
     conn = op.get_bind()
-    conn.execute(sa.text("SAVEPOINT create_hypertable_sp"))
-    try:
+    has_tsdb = conn.execute(
+        sa.text("SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'")
+    ).scalar()
+    if has_tsdb:
         conn.execute(
             sa.text(
                 "SELECT create_hypertable('weather_readings', 'ts', "
                 "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
             )
         )
-        conn.execute(sa.text("RELEASE SAVEPOINT create_hypertable_sp"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT create_hypertable_sp"))
 
 
 def downgrade() -> None:

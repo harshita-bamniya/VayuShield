@@ -39,21 +39,20 @@ def upgrade() -> None:
     )
     op.create_index("ix_station_readings_station_id", "station_readings", ["station_id"])
     op.create_index("ix_station_readings_ts", "station_readings", ["ts"])
-    # Promote to TimescaleDB hypertable — uses a SAVEPOINT so that if TimescaleDB is
-    # not installed (e.g. plain PostGIS CI environment) the failure is rolled back to
-    # the savepoint only, leaving the outer Alembic transaction healthy.
+    # Promote to TimescaleDB hypertable only when TimescaleDB is installed.
+    # Checking the pg_extension catalogue avoids any error that would abort the
+    # Alembic transaction (CI uses plain PostGIS without TimescaleDB).
     conn = op.get_bind()
-    conn.execute(sa.text("SAVEPOINT create_hypertable_sp"))
-    try:
+    has_tsdb = conn.execute(
+        sa.text("SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'")
+    ).scalar()
+    if has_tsdb:
         conn.execute(
             sa.text(
                 "SELECT create_hypertable('station_readings', 'ts', "
                 "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
             )
         )
-        conn.execute(sa.text("RELEASE SAVEPOINT create_hypertable_sp"))
-    except Exception:
-        conn.execute(sa.text("ROLLBACK TO SAVEPOINT create_hypertable_sp"))
 
 
 def downgrade() -> None:
