@@ -28,4 +28,8 @@ class ApiEnvelope(BaseModel, Generic[T]):
 
     @classmethod
     def err(cls, code: str, message: str, details: dict | None = None) -> "ApiEnvelope[None]":
-        return cls(data=None, meta=None, error=ErrorDetail(code=code, message=message, details=details or {}))
+        return cls(
+            data=None,
+            meta=None,
+            error=ErrorDetail(code=code, message=message, details=details or {}),
+        )

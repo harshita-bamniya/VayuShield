@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends
@@ -22,15 +22,21 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (
+    expire = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    return jwt.encode({**data, "exp": expire, "type": "access"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(
+        {**data, "exp": expire, "type": "access"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
 
 
 def create_refresh_token(data: dict[str, Any]) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return jwt.encode({**data, "exp": expire, "type": "refresh"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    return jwt.encode(
+        {**data, "exp": expire, "type": "refresh"},
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
 
 
 def decode_token(token: str) -> dict[str, Any]:
@@ -43,7 +49,9 @@ def decode_token(token: str) -> dict[str, Any]:
 def require_role(*roles: str):
     """FastAPI dependency — checks Bearer token and asserts role membership."""
 
-    def dependency(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict:
+    def dependency(
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    ) -> dict:
         if not credentials:
             raise UnauthorizedError("Authentication required")
         payload = decode_token(credentials.credentials)
@@ -56,7 +64,9 @@ def require_role(*roles: str):
     return dependency
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict:
     """Dependency — any authenticated user; returns token payload."""
     if not credentials:
         raise UnauthorizedError("Authentication required")

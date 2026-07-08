@@ -4,6 +4,7 @@ This runs every startup but is idempotent — skips if admin already exists.
 Module 01 will own the users table and password hashing; this stub uses
 passlib directly so Module 00 can stand alone without depending on Module 01.
 """
+
 import uuid
 
 from passlib.context import CryptContext

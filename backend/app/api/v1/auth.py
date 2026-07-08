@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -25,7 +25,12 @@ async def refresh(body: RefreshRequest):
     if payload.get("type") != "refresh":
         raise UnauthorizedError("Refresh token required")
     new_access = create_access_token(
-        {"sub": payload["sub"], "email": payload["email"], "role": payload["role"], "city_id": payload.get("city_id")}
+        {
+            "sub": payload["sub"],
+            "email": payload["email"],
+            "role": payload["role"],
+            "city_id": payload.get("city_id"),
+        }
     )
     return ApiEnvelope(data={"access_token": new_access, "token_type": "bearer"})
 

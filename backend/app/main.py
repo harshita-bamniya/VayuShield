@@ -51,7 +51,11 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         content={
             "data": None,
             "meta": None,
-            "error": {"code": "INTERNAL_ERROR", "message": "An unexpected error occurred", "details": {}},
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "An unexpected error occurred",
+                "details": {},
+            },
         },
     )
 
