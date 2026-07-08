@@ -128,7 +128,7 @@ async def _seed_delhi(session) -> None:
                  vulnerable_site_flags, created_at, updated_at)
             VALUES
                 (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
-                 :flags::jsonb, NOW(), NOW())
+                 CAST(:flags AS jsonb), NOW(), NOW())
             """
         ),
         {
@@ -148,7 +148,7 @@ async def _seed_delhi(session) -> None:
                  vulnerable_site_flags, created_at, updated_at)
             VALUES
                 (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
-                 :flags::jsonb, NOW(), NOW())
+                 CAST(:flags AS jsonb), NOW(), NOW())
             """
         ),
         {

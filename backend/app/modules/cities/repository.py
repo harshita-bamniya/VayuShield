@@ -108,7 +108,7 @@ async def create_ward(
                      vulnerable_site_flags, created_at, updated_at)
                 VALUES
                     (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :population,
-                     :flags::jsonb, NOW(), NOW())
+                     CAST(:flags AS jsonb), NOW(), NOW())
                 """
             ),
             {
@@ -127,7 +127,7 @@ async def create_ward(
                 INSERT INTO wards
                     (id, city_id, name, population, vulnerable_site_flags, created_at, updated_at)
                 VALUES
-                    (:id, :city_id, :name, :population, :flags::jsonb, NOW(), NOW())
+                    (:id, :city_id, :name, :population, CAST(:flags AS jsonb), NOW(), NOW())
                 """
             ),
             {
