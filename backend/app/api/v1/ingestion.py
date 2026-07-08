@@ -20,6 +20,7 @@ router = APIRouter(tags=["ingestion"])
 
 # ── Station readings ──────────────────────────────────────────────────────────
 
+
 @router.get(
     "/cities/{city_id}/readings/latest",
     response_model=ApiEnvelope[list[LatestReadingOut]],
@@ -67,6 +68,7 @@ async def trigger_poll(
 
 # ── Weather ───────────────────────────────────────────────────────────────────
 
+
 @router.get(
     "/cities/{city_id}/weather/latest",
     response_model=ApiEnvelope[WeatherReadingOut | None],
@@ -91,6 +93,7 @@ async def trigger_weather_poll(
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────
+
 
 @router.get(
     "/cities/{city_id}/emission-sources",

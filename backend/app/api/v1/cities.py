@@ -5,12 +5,20 @@ from app.core.database import get_db
 from app.core.middleware import require_city_scope
 from app.core.security import require_role
 from app.modules.cities import service
-from app.modules.cities.schemas import CityCreate, CityOut, StationCreate, StationOut, WardCreate, WardOut
+from app.modules.cities.schemas import (
+    CityCreate,
+    CityOut,
+    StationCreate,
+    StationOut,
+    WardCreate,
+    WardOut,
+)
 from app.schemas.common import ApiEnvelope, PaginationMeta
 
 router = APIRouter(tags=["cities"])
 
 # ── City endpoints (sysadmin only) ────────────────────────────────────────────
+
 
 @router.get("/cities", response_model=ApiEnvelope[list[CityOut]])
 async def list_cities(
@@ -45,6 +53,7 @@ async def get_city(
 
 # ── Ward endpoints ────────────────────────────────────────────────────────────
 
+
 @router.get("/cities/{city_id}/wards", response_model=ApiEnvelope[list[WardOut]])
 async def list_wards(
     city_id: str,
@@ -69,6 +78,7 @@ async def create_ward(
 
 
 # ── Station endpoints ─────────────────────────────────────────────────────────
+
 
 @router.get("/cities/{city_id}/stations", response_model=ApiEnvelope[list[StationOut]])
 async def list_stations(

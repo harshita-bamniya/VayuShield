@@ -43,9 +43,7 @@ async def fetch_station_readings(
         return _mock_reading(station_id, ts)
 
 
-async def _fetch_from_cpcb(
-    station_code: str, station_id: str, ts: datetime
-) -> StationReadingIn:
+async def _fetch_from_cpcb(station_code: str, station_id: str, ts: datetime) -> StationReadingIn:
     """Real CPCB API call — requires valid credentials in settings.
 
     Uncomment and configure when API access is granted:
@@ -107,12 +105,15 @@ def generate_historical_readings(
     current = start
     while current <= end:
         readings.append(_mock_reading(station_id, current))
-        current = current.replace(hour=(current.hour + interval_hours) % 24) if interval_hours < 24 else current  # noqa
+        current = (
+            current.replace(hour=(current.hour + interval_hours) % 24)
+            if interval_hours < 24
+            else current
+        )  # noqa
         # Simple increment via timestamp arithmetic
         from datetime import timedelta
-        current = start + timedelta(
-            hours=interval_hours * (len(readings))
-        )
+
+        current = start + timedelta(hours=interval_hours * (len(readings)))
         if current > end:
             break
     return readings

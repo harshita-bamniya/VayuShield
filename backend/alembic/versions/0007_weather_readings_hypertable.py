@@ -26,11 +26,11 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("ts", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("wind_speed", sa.Float, nullable=True),   # m/s
-        sa.Column("wind_dir", sa.Float, nullable=True),     # degrees (0-360)
-        sa.Column("humidity", sa.Float, nullable=True),     # %
-        sa.Column("temp", sa.Float, nullable=True),         # °C
-        sa.Column("pressure", sa.Float, nullable=True),     # hPa
+        sa.Column("wind_speed", sa.Float, nullable=True),  # m/s
+        sa.Column("wind_dir", sa.Float, nullable=True),  # degrees (0-360)
+        sa.Column("humidity", sa.Float, nullable=True),  # %
+        sa.Column("temp", sa.Float, nullable=True),  # °C
+        sa.Column("pressure", sa.Float, nullable=True),  # hPa
         sa.PrimaryKeyConstraint("id", "ts"),
     )
     op.create_index("ix_weather_readings_city_id", "weather_readings", ["city_id"])

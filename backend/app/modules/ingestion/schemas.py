@@ -9,8 +9,10 @@ from app.schemas.geo import validate_geojson_geometry
 
 # ── Station Readings ──────────────────────────────────────────────────────────
 
+
 class StationReadingIn(BaseModel):
     """Payload from a CAAQMS connector — one reading per station per poll cycle."""
+
     station_id: str
     ts: datetime
     pm25: float | None = None
@@ -41,6 +43,7 @@ class StationReadingOut(BaseModel):
 
 class LatestReadingOut(BaseModel):
     """Latest reading for one station, with station metadata attached."""
+
     station_id: str
     station_name: str
     external_station_code: str
@@ -53,6 +56,7 @@ class LatestReadingOut(BaseModel):
 
 
 # ── Weather ───────────────────────────────────────────────────────────────────
+
 
 class WeatherReadingOut(BaseModel):
     id: str
@@ -68,6 +72,7 @@ class WeatherReadingOut(BaseModel):
 
 
 # ── Fire Hotspots ─────────────────────────────────────────────────────────────
+
 
 class FireHotspotOut(BaseModel):
     id: str
@@ -92,6 +97,7 @@ class FireHotspotOut(BaseModel):
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────
+
 
 class EmissionSourceCreate(BaseModel):
     name: str

@@ -32,6 +32,7 @@ def _run(coro):
 
 def poll_all_stations_job(city_id: str = DELHI_CITY_ID) -> dict:
     """RQ job: fetch latest readings from all CAAQMS stations for a city."""
+
     async def _inner():
         async with AsyncSessionLocal() as db:
             inserted = await poll_city_stations(db, city_id)
@@ -43,6 +44,7 @@ def poll_all_stations_job(city_id: str = DELHI_CITY_ID) -> dict:
 
 def poll_weather_job(city_id: str = DELHI_CITY_ID) -> dict:
     """RQ job: fetch hourly weather from Open-Meteo for a city."""
+
     async def _inner():
         async with AsyncSessionLocal() as db:
             inserted = await poll_weather(db, city_id)
@@ -54,6 +56,7 @@ def poll_weather_job(city_id: str = DELHI_CITY_ID) -> dict:
 
 def poll_fire_hotspots_job(city_id: str = DELHI_CITY_ID) -> dict:
     """RQ job: fetch NASA FIRMS fire detections within city bounding box."""
+
     async def _inner():
         async with AsyncSessionLocal() as db:
             inserted = await poll_fire_hotspots(db, city_id)

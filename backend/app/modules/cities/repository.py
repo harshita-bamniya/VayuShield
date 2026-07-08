@@ -12,6 +12,7 @@ from app.modules.cities.models import City, Station, Ward
 
 # ── Cities ────────────────────────────────────────────────────────────────────
 
+
 async def get_all_cities(db: AsyncSession, page: int, limit: int) -> tuple[list[City], int]:
     offset = (page - 1) * limit
     count_result = await db.execute(select(func.count()).select_from(City))
@@ -26,7 +27,9 @@ async def get_city_by_id(db: AsyncSession, city_id: str) -> City | None:
     return result.scalar_one_or_none()
 
 
-async def create_city(db: AsyncSession, *, name: str, state: str, timezone: str, config_json: dict[str, Any]) -> City:
+async def create_city(
+    db: AsyncSession, *, name: str, state: str, timezone: str, config_json: dict[str, Any]
+) -> City:
     city = City(
         id=str(uuid.uuid4()),
         name=name,
@@ -42,7 +45,10 @@ async def create_city(db: AsyncSession, *, name: str, state: str, timezone: str,
 
 # ── Wards ─────────────────────────────────────────────────────────────────────
 
-async def get_wards_for_city(db: AsyncSession, city_id: str, page: int, limit: int) -> tuple[list[dict], int]:
+
+async def get_wards_for_city(
+    db: AsyncSession, city_id: str, page: int, limit: int
+) -> tuple[list[dict], int]:
     offset = (page - 1) * limit
     count_result = await db.execute(
         select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
@@ -134,7 +140,10 @@ async def create_ward(
 
 # ── Stations ──────────────────────────────────────────────────────────────────
 
-async def get_stations_for_city(db: AsyncSession, city_id: str, page: int, limit: int) -> tuple[list[dict], int]:
+
+async def get_stations_for_city(
+    db: AsyncSession, city_id: str, page: int, limit: int
+) -> tuple[list[dict], int]:
     offset = (page - 1) * limit
     count_result = await db.execute(
         select(func.count()).select_from(Station).where(Station.city_id == city_id)

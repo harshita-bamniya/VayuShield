@@ -9,6 +9,7 @@ from app.schemas.geo import validate_geojson_geometry
 
 # ── City ─────────────────────────────────────────────────────────────────────
 
+
 class CityCreate(BaseModel):
     name: str
     state: str
@@ -28,6 +29,7 @@ class CityOut(BaseModel):
 
 
 # ── Ward ─────────────────────────────────────────────────────────────────────
+
 
 class WardCreate(BaseModel):
     name: str
@@ -65,6 +67,7 @@ class WardOut(BaseModel):
 
 
 # ── Station ──────────────────────────────────────────────────────────────────
+
 
 class StationCreate(BaseModel):
     ward_id: str | None = None

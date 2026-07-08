@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.modules.cities.repository import get_city_by_id, get_stations_for_city
 from app.modules.ingestion import repository as repo
-from app.modules.ingestion.connectors import caaqms, weather as weather_connector, fire_hotspots as fire_connector
+from app.modules.ingestion.connectors import (
+    caaqms,
+    weather as weather_connector,
+    fire_hotspots as fire_connector,
+)
 from app.modules.ingestion.schemas import (
     EmissionSourceCreate,
     EmissionSourceOut,
@@ -19,6 +23,7 @@ from app.schemas.common import PaginationMeta
 
 
 # ── Station readings ──────────────────────────────────────────────────────────
+
 
 async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     """Pull latest readings from all active stations in a city. Returns total inserted."""
@@ -58,13 +63,12 @@ async def get_station_readings(
     city = await get_city_by_id(db, city_id)
     if not city:
         raise NotFoundError(f"City '{city_id}' not found")
-    readings, total = await repo.get_readings_for_station(
-        db, station_id, since, until, page, limit
-    )
+    readings, total = await repo.get_readings_for_station(db, station_id, since, until, page, limit)
     return readings, PaginationMeta(page=page, limit=limit, total=total)
 
 
 # ── Weather ───────────────────────────────────────────────────────────────────
+
 
 async def poll_weather(db: AsyncSession, city_id: str) -> int:
     """Fetch latest weather for city from Open-Meteo. Returns rows inserted."""
@@ -73,6 +77,7 @@ async def poll_weather(db: AsyncSession, city_id: str) -> int:
         raise NotFoundError(f"City '{city_id}' not found")
     # Use city centroid — for now hardcoded to Delhi; Module 11 will store lat/lon in config_json
     from app.modules.ingestion.connectors.weather import fetch_weather_for_delhi
+
     readings = await fetch_weather_for_delhi(city_id, hours_back=2)
     return await repo.bulk_insert_weather(db, readings)
 
@@ -86,6 +91,7 @@ async def get_latest_weather(db: AsyncSession, city_id: str) -> WeatherReadingOu
 
 
 # ── Fire Hotspots ─────────────────────────────────────────────────────────────
+
 
 async def poll_fire_hotspots(db: AsyncSession, city_id: str) -> int:
     city = await get_city_by_id(db, city_id)
@@ -101,6 +107,7 @@ async def poll_fire_hotspots(db: AsyncSession, city_id: str) -> int:
 
 # ── Emission Sources ──────────────────────────────────────────────────────────
 
+
 async def list_emission_sources(
     db: AsyncSession, city_id: str, page: int, limit: int
 ) -> tuple[list[EmissionSourceOut], PaginationMeta]:
@@ -108,7 +115,9 @@ async def list_emission_sources(
     if not city:
         raise NotFoundError(f"City '{city_id}' not found")
     sources, total = await repo.get_emission_sources(db, city_id, page, limit)
-    return [EmissionSourceOut.model_validate(s) for s in sources], PaginationMeta(page=page, limit=limit, total=total)
+    return [EmissionSourceOut.model_validate(s) for s in sources], PaginationMeta(
+        page=page, limit=limit, total=total
+    )
 
 
 async def create_emission_source(

@@ -59,7 +59,7 @@ WARD_DWARKA_GEOJSON = {
 }
 
 # Real CAAQMS station locations (DPCC network)
-STATION_AV_GEOJSON = {"type": "Point", "coordinates": [77.3154, 28.6469]}   # Anand Vihar
+STATION_AV_GEOJSON = {"type": "Point", "coordinates": [77.3154, 28.6469]}  # Anand Vihar
 STATION_ITO_GEOJSON = {"type": "Point", "coordinates": [77.2403, 28.6273]}  # ITO
 
 
@@ -260,8 +260,7 @@ async def _seed_ingestion_data(session) -> None:
     def make_reading(station_id: str, ts: datetime) -> dict:
         hour = ts.hour
         diurnal = 1.0 + 0.4 * (
-            math.exp(-0.5 * ((hour - 8) / 2) ** 2)
-            + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
+            math.exp(-0.5 * ((hour - 8) / 2) ** 2) + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
         )
         base_pm25 = 120.0 * diurnal
         pm25 = round(max(5.0, base_pm25 * random.uniform(0.85, 1.15)), 2)
@@ -271,7 +270,14 @@ async def _seed_ingestion_data(session) -> None:
         co = round(random.uniform(0.5, 3.0), 2)
         o3 = round(random.uniform(10, 60), 2)
         # Simple CPCB PM2.5 AQI
-        bp = [(0,30,0,50),(30,60,51,100),(60,90,101,200),(90,120,201,300),(120,250,301,400),(250,500,401,500)]
+        bp = [
+            (0, 30, 0, 50),
+            (30, 60, 51, 100),
+            (60, 90, 101, 200),
+            (90, 120, 201, 300),
+            (120, 250, 301, 400),
+            (250, 500, 401, 500),
+        ]
         aqi = 500
         for c_lo, c_hi, i_lo, i_hi in bp:
             if c_lo <= pm25 <= c_hi:
@@ -281,7 +287,12 @@ async def _seed_ingestion_data(session) -> None:
             "id": str(uuid.uuid4()),
             "station_id": station_id,
             "ts": ts,
-            "pm25": pm25, "pm10": pm10, "no2": no2, "so2": so2, "co": co, "o3": o3,
+            "pm25": pm25,
+            "pm10": pm10,
+            "no2": no2,
+            "so2": so2,
+            "co": co,
+            "o3": o3,
             "aqi": aqi,
         }
 

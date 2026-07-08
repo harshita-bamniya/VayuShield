@@ -15,12 +15,8 @@ class StationReading(Base):
 
     __tablename__ = "station_readings"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    ts: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), primary_key=True, nullable=False
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, nullable=False)
     station_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("stations.id", ondelete="CASCADE"), nullable=False
     )
@@ -42,20 +38,16 @@ class WeatherReading(Base):
 
     __tablename__ = "weather_readings"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    ts: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), primary_key=True, nullable=False
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True, nullable=False)
     city_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
     )
-    wind_speed: Mapped[float | None] = mapped_column(Float, nullable=True)   # m/s
-    wind_dir: Mapped[float | None] = mapped_column(Float, nullable=True)     # degrees
-    humidity: Mapped[float | None] = mapped_column(Float, nullable=True)     # %
-    temp: Mapped[float | None] = mapped_column(Float, nullable=True)         # °C
-    pressure: Mapped[float | None] = mapped_column(Float, nullable=True)     # hPa
+    wind_speed: Mapped[float | None] = mapped_column(Float, nullable=True)  # m/s
+    wind_dir: Mapped[float | None] = mapped_column(Float, nullable=True)  # degrees
+    humidity: Mapped[float | None] = mapped_column(Float, nullable=True)  # %
+    temp: Mapped[float | None] = mapped_column(Float, nullable=True)  # °C
+    pressure: Mapped[float | None] = mapped_column(Float, nullable=True)  # hPa
 
 
 class FireHotspot(Base):
@@ -63,9 +55,7 @@ class FireHotspot(Base):
 
     __tablename__ = "fire_hotspots"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     city_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
     )
@@ -73,7 +63,7 @@ class FireHotspot(Base):
     geometry: Mapped[str | None] = mapped_column(Text, nullable=True)  # PostGIS POINT
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     source: Mapped[str] = mapped_column(String(100), nullable=False, server_default="NASA_FIRMS")
-    frp: Mapped[float | None] = mapped_column(Float, nullable=True)    # fire radiative power (MW)
+    frp: Mapped[float | None] = mapped_column(Float, nullable=True)  # fire radiative power (MW)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -82,9 +72,7 @@ class EmissionSource(Base):
 
     __tablename__ = "emission_sources"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     city_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("cities.id", ondelete="CASCADE"), nullable=False
     )

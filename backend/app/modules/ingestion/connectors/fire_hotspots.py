@@ -61,8 +61,8 @@ def _parse_firms_csv(csv_text: str, city_id: str) -> list[dict]:
         try:
             lat = float(row["latitude"])
             lon = float(row["longitude"])
-            acq_date = row["acq_date"]   # YYYY-MM-DD
-            acq_time = row["acq_time"]   # HHMM
+            acq_date = row["acq_date"]  # YYYY-MM-DD
+            acq_time = row["acq_time"]  # HHMM
             hour = int(acq_time[:2]) if len(acq_time) >= 2 else 0
             minute = int(acq_time[2:4]) if len(acq_time) >= 4 else 0
             dt_str = f"{acq_date} {hour:02d}:{minute:02d}:00"
@@ -72,7 +72,9 @@ def _parse_firms_csv(csv_text: str, city_id: str) -> list[dict]:
             confidence_raw = row.get("confidence", "50")
             # VIIRS confidence: 'l', 'n', 'h' → map to 33, 66, 90
             conf_map = {"l": 33.0, "n": 66.0, "h": 90.0}
-            confidence = conf_map.get(confidence_raw, float(confidence_raw) if confidence_raw.isdigit() else 50.0)
+            confidence = conf_map.get(
+                confidence_raw, float(confidence_raw) if confidence_raw.isdigit() else 50.0
+            )
             frp = float(row["frp"]) if row.get("frp") else None
             hotspots.append(
                 {

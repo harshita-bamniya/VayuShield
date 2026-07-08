@@ -39,14 +39,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_stations_city_id", "stations", ["city_id"])
     op.create_index("ix_stations_ward_id", "stations", ["ward_id"])
-    op.create_index(
-        "ix_stations_external_code", "stations", ["external_station_code"], unique=True
-    )
+    op.create_index("ix_stations_external_code", "stations", ["external_station_code"], unique=True)
     # PostGIS geometry column — POINT, WGS84 (SRID 4326)
     op.execute(
-        sa.text(
-            "SELECT AddGeometryColumn('public', 'stations', 'geometry', 4326, 'POINT', 2)"
-        )
+        sa.text("SELECT AddGeometryColumn('public', 'stations', 'geometry', 4326, 'POINT', 2)")
     )
     op.execute(sa.text("CREATE INDEX ix_stations_geometry ON stations USING GIST (geometry)"))
 

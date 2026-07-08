@@ -40,9 +40,7 @@ def upgrade() -> None:
     op.create_index("ix_wards_city_id", "wards", ["city_id"])
     # PostGIS geometry column — MULTIPOLYGON, WGS84 (SRID 4326)
     op.execute(
-        sa.text(
-            "SELECT AddGeometryColumn('public', 'wards', 'geometry', 4326, 'MULTIPOLYGON', 2)"
-        )
+        sa.text("SELECT AddGeometryColumn('public', 'wards', 'geometry', 4326, 'MULTIPOLYGON', 2)")
     )
     op.execute(sa.text("CREATE INDEX ix_wards_geometry ON wards USING GIST (geometry)"))
 

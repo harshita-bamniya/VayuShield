@@ -14,6 +14,7 @@ from app.modules.ingestion.schemas import StationReadingIn
 
 # ── Station Readings ──────────────────────────────────────────────────────────
 
+
 async def bulk_insert_readings(db: AsyncSession, readings: list[StationReadingIn]) -> int:
     """Insert a batch of station readings. Returns count inserted."""
     if not readings:
@@ -117,6 +118,7 @@ async def get_readings_for_station(
 
 # ── Weather ───────────────────────────────────────────────────────────────────
 
+
 async def bulk_insert_weather(db: AsyncSession, readings: list[dict]) -> int:
     if not readings:
         return 0
@@ -150,6 +152,7 @@ async def get_latest_weather(db: AsyncSession, city_id: str) -> dict | None:
 
 
 # ── Fire Hotspots ─────────────────────────────────────────────────────────────
+
 
 async def insert_fire_hotspot(
     db: AsyncSession,
@@ -212,6 +215,7 @@ async def get_fire_hotspots(
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────
+
 
 async def get_emission_sources(
     db: AsyncSession, city_id: str, page: int, limit: int
