@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
 class LoginRequest(BaseModel):
@@ -25,7 +25,7 @@ class TokenResponse(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
-    email: EmailStr
+    email: str  # plain str — .local TLD fails EmailStr validation
     password: str
     role: str = "admin"
     city_id: str | None = None
