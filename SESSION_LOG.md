@@ -189,17 +189,67 @@ At the end, every item in the "Definition of Done — Module 01" checklist must 
 ---
 
 ## Session 3 — Module 02: City & Ward Core
-**Status:** TODO — START HERE next session
+**Date:** 2026-07-09
+**Status:** COMPLETE
 
 ### Prerequisites
 - Module 00 + Module 01 code is in place
 - Alembic migrations 0001 + 0002 applied (via `docker-compose up`)
 - Auth endpoints working (verified in Session 2)
 
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0003_cities_table.py` | Migration: `cities` table (id, name, state, timezone, config_json JSONB) |
+| `backend/alembic/versions/0004_wards_table.py` | Migration: `wards` table + PostGIS `MULTIPOLYGON` geometry column + GiST index |
+| `backend/alembic/versions/0005_stations_table.py` | Migration: `stations` table + PostGIS `POINT` geometry column + GiST index |
+| `backend/app/modules/cities/__init__.py` | Package marker |
+| `backend/app/modules/cities/models.py` | SQLAlchemy `City`, `Ward`, `Station` ORM models |
+| `backend/app/modules/cities/schemas.py` | Pydantic DTOs: `CityCreate/Out`, `WardCreate/Out`, `StationCreate/Out` |
+| `backend/app/modules/cities/repository.py` | DB access — geometry read via `ST_AsGeoJSON()`, writes via `ST_GeomFromGeoJSON()` |
+| `backend/app/modules/cities/service.py` | Business logic layer — list/get/create for cities, wards, stations |
+| `backend/app/api/v1/cities.py` | API router: `GET/POST /cities`, `GET /cities/{city_id}`, `GET/POST /cities/{city_id}/wards`, `GET/POST /cities/{city_id}/stations` |
+| `backend/app/core/middleware.py` | `require_city_scope` FastAPI dependency — blocks non-sysadmin users from foreign cities |
+| `backend/app/schemas/geo.py` | Shared GeoJSON validator (`validate_geojson_geometry`) |
+| `backend/app/tests/test_cities.py` | 5 tests: list cities, create+get city, list wards/stations for Delhi, city-scope enforcement |
+| `frontend/src/features/cities/api.ts` | Typed API calls: `fetchCities`, `fetchCity`, `fetchWards`, `fetchStations` |
+| `frontend/src/features/cities/useCities.ts` | Zustand store: `selectedCityId`, `selectedCity`, `setSelectedCity` |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/pyproject.toml` | Added `geoalchemy2>=0.15.0`, `shapely>=2.0.4` to main deps |
+| `backend/app/main.py` | Wired `cities_router` |
+| `backend/app/db/seed.py` | Added Delhi pilot city seed: 2 wards (Connaught Place, Dwarka), 2 CAAQMS stations (Anand Vihar, ITO) |
+| `backend/app/tests/conftest.py` | Added `sysadmin_token` fixture |
+| `frontend/src/App.tsx` | Added `AuthRehydrator` component — calls `GET /users/me` on mount if localStorage has a token, re-hydrates Zustand store (fixes page-refresh auth loss) |
+| `frontend/src/pages/Dashboard.tsx` | Wired live city name: fetches own city (admins) or all cities (sysadmin), shows in topbar; city selector dropdown for sysadmin |
+
+#### Definition of Done — Module 02 ✅
+
+- [x] Migration 0003 creates `cities` table
+- [x] Migration 0004 creates `wards` table with PostGIS `MULTIPOLYGON` + GiST index
+- [x] Migration 0005 creates `stations` table with PostGIS `POINT` + GiST index
+- [x] `GET /api/v1/cities` returns city list (sysadmin only)
+- [x] `POST /api/v1/cities` creates a city (sysadmin only)
+- [x] `GET /api/v1/cities/{city_id}/wards` returns ward list with GeoJSON geometry
+- [x] `GET /api/v1/cities/{city_id}/stations` returns station list with GeoJSON geometry
+- [x] City-scoping middleware blocks non-sysadmin users from foreign cities (403)
+- [x] Delhi pilot city seeded on boot: 2 wards, 2 CAAQMS stations
+- [x] Frontend `useCities` Zustand store tracks `selectedCityId`
+- [x] Dashboard topbar shows live city name from API (not hardcoded)
+- [x] Auth state rehydration fixed — page refresh no longer drops auth
+- [x] TypeScript compiles with no errors (`tsc --noEmit` — clean)
+- [x] All Python files parse without syntax errors
+
 ### What to read before starting
 1. `00_MASTER_ARCHITECTURE.md`
 2. `02_CROSS_MODULE_CONTRACTS.md`
-3. `modules/Module_02_City_Ward_Core.md` (if it exists; otherwise derive from §2 of 02_CROSS_MODULE_CONTRACTS.md)
+3. `modules/Module_03_Ingestion.md` (if it exists)
 
 ### What needs to be built
 
@@ -224,9 +274,13 @@ Module 02 owns the `cities`, `wards`, `stations` tables and multi-tenancy middle
 - City selector in topbar (Zustand `selectedCityId`)
 - `pages/Dashboard.tsx` — wire live city name into topbar instead of hardcoded "Delhi"
 
-### Known issues going into Session 3
-- Auth tests require Docker DB — run `docker-compose up` first, then `pytest`
-- `RoleGuard` redirects unauthenticated users to `/login`, but there's no persistent auth state across page refresh yet (Zustand store resets). Session 3 or earlier should add a `useEffect` in `App.tsx` that calls `GET /api/v1/users/me` on mount if `localStorage` has an access token, and re-hydrates the store.
+### Known issues going into Session 3 (all resolved)
+- Auth tests require Docker DB — run `docker-compose up` first, then `pytest` ✅ (unchanged)
+- Auth state rehydration on page refresh ✅ FIXED — `AuthRehydrator` in `App.tsx`
+
+### Known issues going into Session 4
+- `geoalchemy2` and `shapely` were added to `pyproject.toml` main deps. They require GDAL to be available in the runtime environment. The `backend/Dockerfile` already installs GDAL (`python:3.11-slim` + `libgdal-dev`). Running backend locally outside Docker without GDAL will fail at import time — use `docker-compose up` for the full stack.
+- The `Ward.geometry` and `Station.geometry` ORM columns are typed as `Text` (not `geoalchemy2.Geometry`) because geometry reads are done via `ST_AsGeoJSON()` in repository queries, not via ORM attribute access. This is intentional — don't "fix" it with geoalchemy2 Geometry type unless you're ready to handle the WKB serialization throughout.
 
 ### PROMPT TO USE AT THE START OF SESSION 3
 
@@ -242,6 +296,84 @@ Modules 00 and 01 are complete. The code lives at E:\GalaxyWeblinks\Hackathon\va
 
 Your job this session is Module 02: City & Ward Core. Build the cities/wards/stations tables (PostGIS geometry), ORM models, repository/service/API layers, city-scoping middleware, and seed a pilot city. Also fix the auth state rehydration issue noted in SESSION_LOG.md Session 3 known issues.
 ```
+
+---
+
+### PROMPT TO USE AT THE START OF SESSION 4
+
+```
+Read these files in this order before doing anything:
+1. E:\GalaxyWeblinks\Hackathon\00_MASTER_ARCHITECTURE.md
+2. E:\GalaxyWeblinks\Hackathon\02_CROSS_MODULE_CONTRACTS.md
+3. E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md
+
+We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5).
+
+Modules 00, 01, 02 and 03 are complete. The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
+
+Your job this session is Module 04: Attribution Engine. Build the per-ward, per-hour pollution source attribution logic (dominant source detection from emission_sources + wind direction + distance weighting), write attributions to the attributions table, expose GET /cities/{city_id}/attributions/latest and GET /cities/{city_id}/wards/{ward_id}/attributions endpoints, and wire a background job that runs attribution after each station poll cycle.
+```
+
+---
+
+## Session 3 — Module 03: Data Ingestion
+**Date:** 2026-07-09
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/alembic/versions/0006_station_readings_hypertable.py` | TimescaleDB hypertable: `station_readings` (id+ts composite PK, 1-day chunks) |
+| `backend/alembic/versions/0007_weather_readings_hypertable.py` | TimescaleDB hypertable: `weather_readings` (1-day chunks) |
+| `backend/alembic/versions/0008_fire_hotspots_table.py` | `fire_hotspots` table with PostGIS POINT + GiST index |
+| `backend/alembic/versions/0009_emission_sources_table.py` | `emission_sources` table with PostGIS POINT + GiST index |
+| `backend/app/modules/ingestion/__init__.py` | Package marker |
+| `backend/app/modules/ingestion/models.py` | ORM: `StationReading`, `WeatherReading`, `FireHotspot`, `EmissionSource` |
+| `backend/app/modules/ingestion/schemas.py` | Pydantic DTOs: `StationReadingIn/Out`, `LatestReadingOut`, `WeatherReadingOut`, `FireHotspotOut`, `EmissionSourceCreate/Out` |
+| `backend/app/modules/ingestion/repository.py` | DB access: bulk insert readings, latest-per-station query, weather CRUD, fire hotspot + emission source CRUD |
+| `backend/app/modules/ingestion/service.py` | Service layer orchestrating connectors → repository |
+| `backend/app/modules/ingestion/connectors/__init__.py` | Package marker |
+| `backend/app/modules/ingestion/connectors/caaqms.py` | CPCB connector — real API stub + mock fallback with realistic Delhi diurnal PM2.5 pattern |
+| `backend/app/modules/ingestion/connectors/weather.py` | **Real** Open-Meteo connector (free, no key) — fetches wind/humidity/temp/pressure |
+| `backend/app/modules/ingestion/connectors/fire_hotspots.py` | NASA FIRMS connector (real CSV API — needs FIRMS_MAP_KEY env var; no-ops if absent) |
+| `backend/app/api/v1/ingestion.py` | API router: `/readings/latest`, `/stations/{id}/readings`, `/readings/poll`, `/weather/latest`, `/weather/poll`, `/emission-sources` |
+| `backend/app/jobs/ingestion_jobs.py` | RQ jobs: `poll_all_stations_job`, `poll_weather_job`, `poll_fire_hotspots_job` (run every 15min/1hr via scheduler) |
+| `backend/app/core/aqi.py` | CPCB AQI computation: `pm25_to_aqi`, `compute_aqi`, `aqi_category` — shared utility |
+| `backend/app/tests/test_ingestion.py` | 7 tests covering readings, weather, emission sources, AQI math |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/main.py` | Wired `ingestion_router` |
+| `backend/app/core/config.py` | Added `FIRMS_MAP_KEY` env var |
+| `backend/app/db/seed.py` | Added `_seed_ingestion_data`: 4 Delhi emission sources + 7 days × 2 stations hourly station readings (~336 rows) |
+
+#### Definition of Done — Module 03 ✅
+
+- [x] `station_readings` and `weather_readings` are TimescaleDB hypertables (migration 0006, 0007)
+- [x] `fire_hotspots` and `emission_sources` have PostGIS geometry + GiST indexes
+- [x] CAAQMS connector: real stub + mock fallback (realistic Delhi PM2.5 diurnal pattern)
+- [x] Weather connector: real Open-Meteo API (no key needed)
+- [x] Fire hotspot connector: real NASA FIRMS CSV API (needs FIRMS_MAP_KEY)
+- [x] RQ jobs defined for all three poll cycles
+- [x] `GET /cities/{city_id}/readings/latest` — latest reading per station with AQI + category
+- [x] `GET /cities/{city_id}/stations/{id}/readings` — paginated history with time filters
+- [x] `POST /cities/{city_id}/readings/poll` — manual trigger (admin/sysadmin)
+- [x] `GET /cities/{city_id}/weather/latest` — most recent weather record
+- [x] `GET/POST /cities/{city_id}/emission-sources` — list and create
+- [x] 7 days of hourly seeded readings for both Delhi CAAQMS stations
+- [x] 4 seeded Delhi emission sources (vehicular, industrial, construction, agricultural)
+- [x] `aqi_category()` utility shared — ready for Modules 04/05/08 to import
+- [x] All Python files syntax-clean, TypeScript compiles with zero errors
+
+### Known issues going into Session 4
+- CAAQMS connector falls back to mock data (realistic but not real CPCB readings). Real CPCB API access requires credentials not yet obtained. The connector stub is in `connectors/caaqms.py` — swap `_fetch_from_cpcb` when credentials arrive.
+- Weather poll (`POST /weather/poll`) calls Open-Meteo live; it will fail without internet. The seed does not pre-populate weather (no offline source). Module 04's wind-direction attribution needs weather — run `POST /weather/poll` once after `docker-compose up` to seed weather before testing attribution.
+- RQ scheduler not yet wired into docker-compose. Jobs exist but need a scheduler service (add `rqscheduler` container to docker-compose in a later session, or trigger manually via the poll endpoints).
 
 ---
 

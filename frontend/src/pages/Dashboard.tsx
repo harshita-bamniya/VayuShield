@@ -1,11 +1,15 @@
-import { useNavigate, NavLink } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
+import { useCities } from "@/features/cities/useCities";
+import { fetchCities, fetchCity } from "@/features/cities/api";
 
 const STAT_CARDS = [
-  { label: "City AQI", value: "—", unit: "", desc: "Delhi · Live", color: "text-yellow-400" },
-  { label: "Active Alerts", value: "—", unit: "", desc: "Pending review", color: "text-red-400" },
-  { label: "Pending Inspections", value: "—", unit: "", desc: "In queue", color: "text-orange-400" },
-  { label: "Advisories Sent", value: "—", unit: "", desc: "Last 24 h", color: "text-green-400" },
+  { label: "City AQI", value: "—", desc: "Live", color: "text-yellow-400" },
+  { label: "Active Alerts", value: "—", desc: "Pending review", color: "text-red-400" },
+  { label: "Pending Inspections", value: "—", desc: "In queue", color: "text-orange-400" },
+  { label: "Advisories Sent", value: "—", desc: "Last 24 h", color: "text-green-400" },
 ];
 
 const NAV_ITEMS = [
@@ -18,6 +22,36 @@ const NAV_ITEMS = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { selectedCityId, selectedCity, setSelectedCity } = useCities();
+
+  // Sysadmin: fetch all cities to let them select one.
+  // City admin/inspector: fetch their own city directly.
+  const isSysadmin = user?.role === "sysadmin";
+
+  const { data: cities } = useQuery({
+    queryKey: ["cities"],
+    queryFn: fetchCities,
+    enabled: isSysadmin,
+  });
+
+  const { data: userCity } = useQuery({
+    queryKey: ["city", user?.city_id],
+    queryFn: () => fetchCity(user!.city_id!),
+    enabled: !isSysadmin && !!user?.city_id,
+  });
+
+  // Auto-select city when data loads
+  useEffect(() => {
+    if (!selectedCityId) {
+      if (userCity) {
+        setSelectedCity(userCity);
+      } else if (cities && cities.length > 0) {
+        setSelectedCity(cities[0]);
+      }
+    }
+  }, [cities, userCity, selectedCityId, setSelectedCity]);
+
+  const displayCity = selectedCity;
 
   async function handleLogout() {
     await logout();
@@ -77,7 +111,31 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
         <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
-          <h1 className="text-lg font-semibold text-white">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold text-white">Dashboard</h1>
+            {displayCity && (
+              <span className="px-2 py-0.5 rounded-md text-xs bg-slate-800 text-slate-400 border border-slate-700">
+                {displayCity.name}, {displayCity.state}
+              </span>
+            )}
+          </div>
+          {/* Sysadmin: city selector */}
+          {isSysadmin && cities && cities.length > 1 && (
+            <select
+              className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={selectedCityId ?? ""}
+              onChange={(e) => {
+                const city = cities.find((c) => c.id === e.target.value);
+                if (city) setSelectedCity(city);
+              }}
+            >
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             Live data
@@ -96,10 +154,10 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">
                   {card.label}
                 </p>
-                <p className={`text-3xl font-bold ${card.color} mb-1`}>
-                  {card.value}
+                <p className={`text-3xl font-bold ${card.color} mb-1`}>{card.value}</p>
+                <p className="text-xs text-slate-500">
+                  {displayCity ? `${displayCity.name} · ` : ""}{card.desc}
                 </p>
-                <p className="text-xs text-slate-500">{card.desc}</p>
               </div>
             ))}
           </div>

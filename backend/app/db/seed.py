@@ -1,10 +1,12 @@
 """
-Seed the database with a default sysadmin user on first boot.
-This runs every startup but is idempotent — skips if admin already exists.
-Module 01 will own the users table and password hashing; this stub uses
-passlib directly so Module 00 can stand alone without depending on Module 01.
+Seed the database on first boot. Idempotent — skips rows that already exist.
+Seeds:
+  - sysadmin user (Module 00/01)
+  - Delhi pilot city + 2 wards + 2 CAAQMS stations (Module 02)
+  - 7 days of hourly station readings + emission sources (Module 03)
 """
 
+import json
 import uuid
 
 from passlib.context import CryptContext
@@ -16,6 +18,50 @@ from app.core.logging import logger
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Stable IDs so seeds are idempotent across restarts
+DELHI_CITY_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+WARD_CP_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+WARD_DWARKA_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012"
+STATION_AV_ID = "d4e5f6a7-b8c9-0123-def0-123456789013"
+STATION_ITO_ID = "e5f6a7b8-c9d0-1234-ef01-234567890124"
+
+# Approximate ward polygons (WGS84 — simplified for demo purposes)
+# Connaught Place / Central Delhi ward
+WARD_CP_GEOJSON = {
+    "type": "MultiPolygon",
+    "coordinates": [
+        [
+            [
+                [77.1900, 28.6200],
+                [77.2400, 28.6200],
+                [77.2400, 28.6450],
+                [77.1900, 28.6450],
+                [77.1900, 28.6200],
+            ]
+        ]
+    ],
+}
+
+# Dwarka (West Delhi) ward
+WARD_DWARKA_GEOJSON = {
+    "type": "MultiPolygon",
+    "coordinates": [
+        [
+            [
+                [77.0000, 28.5500],
+                [77.0900, 28.5500],
+                [77.0900, 28.6200],
+                [77.0000, 28.6200],
+                [77.0000, 28.5500],
+            ]
+        ]
+    ],
+}
+
+# Real CAAQMS station locations (DPCC network)
+STATION_AV_GEOJSON = {"type": "Point", "coordinates": [77.3154, 28.6469]}   # Anand Vihar
+STATION_ITO_GEOJSON = {"type": "Point", "coordinates": [77.2403, 28.6273]}  # ITO
+
 
 async def seed_admin() -> None:
     try:
@@ -26,23 +72,254 @@ async def seed_admin() -> None:
 
 async def _do_seed() -> None:
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": settings.SEED_ADMIN_EMAIL},
-        )
-        if result.fetchone():
-            logger.info("Seed admin already exists, skipping")
-            return
+        await _seed_sysadmin(session)
+        await _seed_delhi(session)
+        await _seed_ingestion_data(session)
 
-        hashed = pwd_context.hash(settings.SEED_ADMIN_PASSWORD)
+
+async def _seed_sysadmin(session) -> None:
+    result = await session.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": settings.SEED_ADMIN_EMAIL},
+    )
+    if result.fetchone():
+        return
+
+    hashed = pwd_context.hash(settings.SEED_ADMIN_PASSWORD)
+    await session.execute(
+        text(
+            """
+            INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
+            VALUES (:id, :email, :password_hash, 'sysadmin', NOW(), NOW())
+            """
+        ),
+        {"id": str(uuid.uuid4()), "email": settings.SEED_ADMIN_EMAIL, "password_hash": hashed},
+    )
+    await session.commit()
+    logger.info("Seed admin created", email=settings.SEED_ADMIN_EMAIL)
+
+
+async def _seed_delhi(session) -> None:
+    # City
+    exists = await session.execute(
+        text("SELECT id FROM cities WHERE id = :id"), {"id": DELHI_CITY_ID}
+    )
+    if exists.fetchone():
+        logger.info("Delhi seed already present, skipping")
+        return
+
+    await session.execute(
+        text(
+            """
+            INSERT INTO cities (id, name, state, timezone, config_json, created_at, updated_at)
+            VALUES (:id, 'Delhi', 'Delhi', 'Asia/Kolkata', '{}', NOW(), NOW())
+            """
+        ),
+        {"id": DELHI_CITY_ID},
+    )
+
+    # Wards
+    await session.execute(
+        text(
+            """
+            INSERT INTO wards (id, city_id, name, geometry, population, vulnerable_site_flags, created_at, updated_at)
+            VALUES (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop, :flags::jsonb, NOW(), NOW())
+            """
+        ),
+        {
+            "id": WARD_CP_ID,
+            "city_id": DELHI_CITY_ID,
+            "name": "Connaught Place",
+            "geom": json.dumps(WARD_CP_GEOJSON),
+            "pop": 350000,
+            "flags": json.dumps({"schools": True, "hospitals": True}),
+        },
+    )
+    await session.execute(
+        text(
+            """
+            INSERT INTO wards (id, city_id, name, geometry, population, vulnerable_site_flags, created_at, updated_at)
+            VALUES (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop, :flags::jsonb, NOW(), NOW())
+            """
+        ),
+        {
+            "id": WARD_DWARKA_ID,
+            "city_id": DELHI_CITY_ID,
+            "name": "Dwarka",
+            "geom": json.dumps(WARD_DWARKA_GEOJSON),
+            "pop": 1200000,
+            "flags": json.dumps({"schools": True, "hospitals": False}),
+        },
+    )
+
+    # Stations
+    await session.execute(
+        text(
+            """
+            INSERT INTO stations (id, city_id, ward_id, external_station_code, name, geometry, is_active, created_at, updated_at)
+            VALUES (:id, :city_id, :ward_id, :code, :name, ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
+            """
+        ),
+        {
+            "id": STATION_AV_ID,
+            "city_id": DELHI_CITY_ID,
+            "ward_id": None,
+            "code": "DPCC_ANAND_VIHAR",
+            "name": "Anand Vihar",
+            "geom": json.dumps(STATION_AV_GEOJSON),
+        },
+    )
+    await session.execute(
+        text(
+            """
+            INSERT INTO stations (id, city_id, ward_id, external_station_code, name, geometry, is_active, created_at, updated_at)
+            VALUES (:id, :city_id, :ward_id, :code, :name, ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
+            """
+        ),
+        {
+            "id": STATION_ITO_ID,
+            "city_id": DELHI_CITY_ID,
+            "ward_id": WARD_CP_ID,
+            "code": "DPCC_ITO",
+            "name": "ITO",
+            "geom": json.dumps(STATION_ITO_GEOJSON),
+        },
+    )
+
+    await session.commit()
+    logger.info("Delhi pilot city seeded", city_id=DELHI_CITY_ID, wards=2, stations=2)
+
+
+async def _seed_ingestion_data(session) -> None:
+    """Seed 7 days of hourly station readings + known Delhi emission sources."""
+    import math
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    # ── Emission sources ──────────────────────────────────────────────────────
+    exists = await session.execute(
+        text("SELECT id FROM emission_sources WHERE city_id = :city_id LIMIT 1"),
+        {"city_id": DELHI_CITY_ID},
+    )
+    if exists.fetchone():
+        logger.info("Ingestion seed already present, skipping")
+        return
+
+    emission_sources = [
+        {
+            "id": "f1a2b3c4-d5e6-7890-abcd-ef1234567801",
+            "name": "Anand Vihar Bus Depot",
+            "type": "vehicular",
+            "geom": {"type": "Point", "coordinates": [77.3120, 28.6450]},
+            "permit_status": "active",
+        },
+        {
+            "id": "f2a2b3c4-d5e6-7890-abcd-ef1234567802",
+            "name": "Delhi Thermal Power Station",
+            "type": "industrial",
+            "geom": {"type": "Point", "coordinates": [77.2800, 28.6200]},
+            "permit_status": "active",
+        },
+        {
+            "id": "f3a2b3c4-d5e6-7890-abcd-ef1234567803",
+            "name": "Ashram Chowk Construction Site",
+            "type": "construction",
+            "geom": {"type": "Point", "coordinates": [77.2490, 28.5700]},
+            "permit_status": "pending",
+        },
+        {
+            "id": "f4a2b3c4-d5e6-7890-abcd-ef1234567804",
+            "name": "Haryana Border Stubble Burning Zone",
+            "type": "agricultural",
+            "geom": {"type": "Point", "coordinates": [76.9500, 28.7500]},
+            "permit_status": "expired",
+        },
+    ]
+    for src in emission_sources:
         await session.execute(
             text(
                 """
-                INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
-                VALUES (:id, :email, :password_hash, 'sysadmin', NOW(), NOW())
+                INSERT INTO emission_sources (id, city_id, name, type, geometry, permit_status, created_at, updated_at)
+                VALUES (:id, :city_id, :name, :type, ST_GeomFromGeoJSON(:geom), :permit_status, NOW(), NOW())
                 """
             ),
-            {"id": str(uuid.uuid4()), "email": settings.SEED_ADMIN_EMAIL, "password_hash": hashed},
+            {
+                "id": src["id"],
+                "city_id": DELHI_CITY_ID,
+                "name": src["name"],
+                "type": src["type"],
+                "geom": json.dumps(src["geom"]),
+                "permit_status": src["permit_status"],
+            },
         )
-        await session.commit()
-        logger.info("Seed admin created", email=settings.SEED_ADMIN_EMAIL)
+
+    # ── Historical station readings (7 days, hourly) ──────────────────────────
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    start = now - timedelta(days=7)
+
+    def make_reading(station_id: str, ts: datetime) -> dict:
+        hour = ts.hour
+        diurnal = 1.0 + 0.4 * (
+            math.exp(-0.5 * ((hour - 8) / 2) ** 2)
+            + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
+        )
+        base_pm25 = 120.0 * diurnal
+        pm25 = round(max(5.0, base_pm25 * random.uniform(0.85, 1.15)), 2)
+        pm10 = round(pm25 * random.uniform(1.5, 2.2), 2)
+        no2 = round(random.uniform(20, 90), 2)
+        so2 = round(random.uniform(5, 30), 2)
+        co = round(random.uniform(0.5, 3.0), 2)
+        o3 = round(random.uniform(10, 60), 2)
+        # Simple CPCB PM2.5 AQI
+        bp = [(0,30,0,50),(30,60,51,100),(60,90,101,200),(90,120,201,300),(120,250,301,400),(250,500,401,500)]
+        aqi = 500
+        for c_lo, c_hi, i_lo, i_hi in bp:
+            if c_lo <= pm25 <= c_hi:
+                aqi = round(i_lo + (i_hi - i_lo) * (pm25 - c_lo) / (c_hi - c_lo))
+                break
+        return {
+            "id": str(uuid.uuid4()),
+            "station_id": station_id,
+            "ts": ts,
+            "pm25": pm25, "pm10": pm10, "no2": no2, "so2": so2, "co": co, "o3": o3,
+            "aqi": aqi,
+        }
+
+    station_ids = [STATION_AV_ID, STATION_ITO_ID]
+    batch = []
+    current = start
+    while current <= now:
+        for sid in station_ids:
+            batch.append(make_reading(sid, current))
+        current += timedelta(hours=1)
+        # Flush every 200 rows to avoid huge transactions
+        if len(batch) >= 200:
+            for r in batch:
+                await session.execute(
+                    text(
+                        "INSERT INTO station_readings (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale) "
+                        "VALUES (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false) "
+                        "ON CONFLICT DO NOTHING"
+                    ),
+                    r,
+                )
+            await session.commit()
+            batch = []
+
+    for r in batch:
+        await session.execute(
+            text(
+                "INSERT INTO station_readings (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale) "
+                "VALUES (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false) "
+                "ON CONFLICT DO NOTHING"
+            ),
+            r,
+        )
+    await session.commit()
+
+    total_readings = (7 * 24) * len(station_ids)
+    logger.info(
+        "Ingestion seed complete",
+        emission_sources=len(emission_sources),
+        station_readings=total_readings,
+    )

@@ -33,5 +33,8 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
 
+    # Ingestion (Module 03)
+    FIRMS_MAP_KEY: str = ""   # NASA FIRMS — get free key at https://firms.modaps.eosdis.nasa.gov/api/
+
 
 settings = Settings()
