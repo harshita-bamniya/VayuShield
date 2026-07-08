@@ -17,7 +17,7 @@ async def get_me(payload: dict = Depends(get_current_user), db: AsyncSession = D
     return ApiEnvelope(data=UserOut.model_validate(user))
 
 
-@router.post("/users", response_model=ApiEnvelope[UserOut])
+@router.post("/users", response_model=ApiEnvelope[UserOut], status_code=201)
 async def create_new_user(
     body: CreateUserRequest,
     payload: dict = Depends(require_role("sysadmin")),
