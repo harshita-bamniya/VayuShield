@@ -58,9 +58,7 @@ async def test_generate_advisory_body_mentions_source(client: AsyncClient, sysad
     assert len(items) > 0
     # At least one advisory body should mention a known source keyword
     source_keywords = ["vehicular", "industrial", "construction", "agricultural", "fire", "mixed"]
-    assert any(
-        any(kw in item["body"].lower() for kw in source_keywords) for item in items
-    )
+    assert any(any(kw in item["body"].lower() for kw in source_keywords) for item in items)
 
 
 @pytest.mark.anyio
