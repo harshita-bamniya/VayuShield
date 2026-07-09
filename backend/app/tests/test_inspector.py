@@ -1,4 +1,4 @@
-"""Module 10 — Inspector PWA tests."""
+﻿"""Module 10 â€” Inspector PWA tests."""
 
 import pytest
 from httpx import AsyncClient
@@ -22,8 +22,8 @@ async def inspector_token(client: AsyncClient, sysadmin_token: str) -> str:
         },
         headers={"Authorization": f"Bearer {sysadmin_token}"},
     )
-    # 201 on first run, 400 on duplicate — either way we can login
-    assert create_resp.status_code in (201, 400)
+    # 201 on first run, 400 on duplicate â€” either way we can login
+    assert create_resp.status_code in (201, 409)
 
     login_resp = await client.post(
         "/api/v1/auth/login",
@@ -58,7 +58,7 @@ async def test_inspector_can_submit_inspection(client: AsyncClient, inspector_to
 
     insp_resp = await client.post(
         f"/api/v1/cities/{CITY_ID}/enforcement/{item_id}/inspections",
-        json={"outcome": "passed", "notes": "Site visit complete — emissions within limits."},
+        json={"outcome": "passed", "notes": "Site visit complete â€” emissions within limits."},
         headers={"Authorization": f"Bearer {inspector_token}"},
     )
     assert insp_resp.status_code == 201
@@ -108,3 +108,4 @@ async def test_inspector_can_mark_item_completed(client: AsyncClient, inspector_
     )
     assert patch_resp.status_code == 200
     assert patch_resp.json()["data"]["status"] == "completed"
+
