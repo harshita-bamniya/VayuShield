@@ -27,7 +27,7 @@ async def get_aqi_stats(db: AsyncSession, city_id: str, days: int) -> dict:
                     DATE_TRUNC('hour', sr.ts) AS hour_bucket
                 FROM station_readings sr
                 WHERE sr.station_id IN (SELECT id FROM city_stations)
-                  AND sr.ts >= NOW() - (:days || ' days')::INTERVAL
+                  AND sr.ts >= NOW() - :days * INTERVAL '1 day'
                   AND sr.aqi IS NOT NULL
             ),
             current_readings AS (
@@ -176,7 +176,7 @@ async def get_ward_aqi_table(db: AsyncSession, city_id: str, days: int) -> list[
             LEFT JOIN stations s ON s.ward_id = w.id AND s.city_id = :city_id AND s.is_active = true
             LEFT JOIN station_readings sr
                 ON sr.station_id = s.id
-                AND sr.ts >= NOW() - (:days || ' days')::INTERVAL
+                AND sr.ts >= NOW() - :days * INTERVAL '1 day'
                 AND sr.aqi IS NOT NULL
             WHERE w.city_id = :city_id
             GROUP BY w.id, w.name
