@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Enforcement from "@/pages/Enforcement";
 import Login from "@/pages/Login";
 import WardDetail from "@/pages/WardDetail";
+import InspectorPage from "@/pages/InspectorPage";
 import type { UserOut } from "@/lib/types";
 
 const queryClient = new QueryClient({
@@ -101,7 +102,7 @@ export default function App() {
             path="/inspector"
             element={
               <RoleGuard roles={["inspector", "sysadmin"]}>
-                <Placeholder name="Inspector PWA (Module 09)" />
+                <InspectorPage />
               </RoleGuard>
             }
           />

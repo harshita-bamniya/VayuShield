@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class EmissionSourceBrief(BaseModel):
@@ -38,11 +38,21 @@ class EnforcementStatusUpdate(BaseModel):
     status: str  # pending | dispatched | completed
 
 
+_VALID_OUTCOMES = {"passed", "failed", "warning", "compliant", "violation", "no_access"}
+
+
 class InspectionCreate(BaseModel):
     scheduled_at: datetime | None = None
     completed_at: datetime | None = None
-    outcome: str | None = None  # compliant | violation | no_access
+    outcome: str | None = None  # passed | failed | warning | compliant | violation | no_access
     notes: str | None = None
+
+    @field_validator("outcome")
+    @classmethod
+    def validate_outcome(cls, v: str | None) -> str | None:
+        if v is not None and v not in _VALID_OUTCOMES:
+            raise ValueError(f"outcome must be one of {sorted(_VALID_OUTCOMES)}")
+        return v
 
 
 class InspectionOut(BaseModel):

@@ -788,31 +788,90 @@ with patch.object(claude_client, "get_anthropic_client", return_value=mock_clien
 ---
 
 ## Session 10 — Module 10: Inspector PWA
+**Date:** 2026-07-10
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `frontend/src/pages/InspectorPage.tsx` | Mobile-optimised inspector queue — sticky top header, stacked cards, outcome form with large touch targets |
+| `backend/app/tests/test_inspector.py` | 5 inspector tests: role access, inspection submit, invalid outcome (422), city-scope enforcement, mark completed |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/modules/enforcement/schemas.py` | Added `field_validator` on `InspectionCreate.outcome` — accepts `passed/failed/warning/compliant/violation/no_access`; returns 422 on unknown value |
+| `frontend/src/App.tsx` | Replaced `/inspector` placeholder with real `<InspectorPage>` component |
+
+### Inspector PWA — Design
+
+**Mobile-first layout:**
+- No sidebar — sticky top header bar with VayuShield branding, user name, logout button
+- Stacked `QueueCard` components, max-width 512px, centred
+- Priority score displayed as large coloured number (red ≥70, orange ≥45, yellow ≥25, green otherwise)
+- Permit badge (active/pending/expired) with colour-coded border
+- Evidence brief collapsed by default — tap to expand
+
+**Inspection flow per card:**
+1. "Start Inspection" button → reveals inline `InspectionForm`
+2. Outcome selector: 3 large tap-target buttons (✅ Passed / ⚠️ Warning / ❌ Failed)
+3. Free-text notes textarea
+4. "Submit Inspection" → `POST /cities/{city_id}/enforcement/{item_id}/inspections` + `PATCH status=completed`
+5. Card replaces itself with a green confirmation banner
+
+**Data source:** Fetches full queue via `fetchEnforcementQueue`, then filters client-side to `status=pending|dispatched`. No new backend endpoints.
+
+**Role access:** `require_city_scope` already allows `inspector` role — inspectors have `city_id` in JWT and the middleware matches it to the path param.
+
+### Definition of Done — Module 10 ✅
+
+- [x] `/inspector` route replaced — no longer shows placeholder
+- [x] Inspector queue cards show: source name, type, priority score, permit status, evidence brief (expandable)
+- [x] "Start Inspection" reveals outcome dropdown (passed/warning/failed) + notes field
+- [x] Submit calls `POST /inspections` + `PATCH status=completed` — card shows confirmation
+- [x] Mobile-optimised: sticky header, no sidebar, large touch targets, stacked cards
+- [x] `InspectionCreate.outcome` validated server-side — unknown values return 422
+- [x] Inspector role can call `GET /enforcement` for their city (verified via `require_city_scope` — no code change needed)
+- [x] Inspector cannot access a foreign city (403)
+- [x] 5 tests written — total test count: **67**
+- [x] `ruff format . && ruff check .` — clean
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues going into Session 11
+- `EmissionSourceBrief` does not include geometry/address — the inspector card shows source name and type but not a map pin or street address. Adding `geometry` to the schema and rendering a small Leaflet map marker per card would improve field usability.
+- Inspector's `cityId` falls back to `useCities.selectedCityId` then `user.city_id`. If neither is set (fresh login, no city selector interaction), the queue fetch is skipped. Inspectors should always have `city_id` set in their JWT at account creation.
+- After submit the card shows a confirmation banner but does not auto-remove from the list — a full refetch via `queryClient.invalidateQueries` is triggered but the card state is local. On next render cycle the card disappears correctly.
+
+---
+
+## Session 11 — Module 11: City Onboarding Admin
 **Planned — build next**
 
-### PROMPT TO USE AT THE START OF SESSION 10
+### PROMPT TO USE AT THE START OF SESSION 11
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 09 are complete. We have 62 passing tests. The last commit is feat(module-09).
+Modules 00 through 10 are complete. We have 67 passing tests. The last commit is feat(module-10).
 
-Your job this session is Module 10: Inspector PWA.
+Your job this session is Module 11: City Onboarding Admin.
 
 Build:
-1. Frontend: `/inspector` page — replaces the placeholder. This is the field inspector's mobile-optimised view.
-   - Show the inspector's assigned enforcement queue items (filtered by their city, status=pending or dispatched)
-   - Each item shows: source name, source type, address/location (from emission_source geometry), priority score, evidence brief, permit status
-   - "Start Inspection" button → calls `POST /cities/{city_id}/enforcement/{item_id}/inspections` with `outcome` dropdown (passed/failed/warning) + free-text notes field
-   - "Submit" saves the inspection and marks the item dispatched→completed
-2. Frontend: Wire `/inspector` route in App.tsx (replace placeholder — already has `roles=["inspector","sysadmin"]` guard)
-3. Frontend: Make the inspector view mobile-optimised (large touch targets, stacked cards, no sidebar — use a top header bar instead)
-4. Backend: `GET /cities/{city_id}/enforcement` already supports `?status=pending` — no new endpoints needed. Verify the inspector role can call it (require_city_scope should allow it).
-5. Tests: ≥3 tests — inspection submission, outcome validation, inspector role access.
+1. Frontend: `/admin/cities` page — replaces the placeholder (already has `roles=["sysadmin"]` guard).
+   - List existing cities with ward count, station count, and status
+   - "Add City" form: city name, state, timezone (dropdown), optional config JSON
+   - "Add Ward" sub-form per city: ward name, population, draw polygon on Leaflet map (or paste GeoJSON)
+   - "Add Station" sub-form per city: station name, external_station_code, lat/lng fields
+2. Backend: All endpoints already exist (`POST /cities`, `POST /cities/{id}/wards`, `POST /cities/{id}/stations`). Verify they work and add any missing validation.
+3. Tests: ≥3 tests — city creation, ward creation with geometry, station creation.
 
-After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and add the Module 11 session prompt. Commit everything.
+After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and add the Module 12 session prompt. Commit everything.
 ```
 
 ---
