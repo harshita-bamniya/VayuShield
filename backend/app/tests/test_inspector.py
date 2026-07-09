@@ -1,4 +1,4 @@
-﻿"""Module 10 â€” Inspector PWA tests."""
+"""Module 10 â€” Inspector PWA tests."""
 
 import pytest
 from httpx import AsyncClient
@@ -108,4 +108,3 @@ async def test_inspector_can_mark_item_completed(client: AsyncClient, inspector_
     )
     assert patch_resp.status_code == 200
     assert patch_resp.json()["data"]["status"] == "completed"
-
