@@ -10,6 +10,7 @@ import Enforcement from "@/pages/Enforcement";
 import Login from "@/pages/Login";
 import WardDetail from "@/pages/WardDetail";
 import InspectorPage from "@/pages/InspectorPage";
+import AdminCitiesPage from "@/pages/AdminCitiesPage";
 import type { UserOut } from "@/lib/types";
 
 const queryClient = new QueryClient({
@@ -94,7 +95,7 @@ export default function App() {
             path="/admin/cities"
             element={
               <RoleGuard roles={["sysadmin"]}>
-                <Placeholder name="City Onboarding (Module 11)" />
+                <AdminCitiesPage />
               </RoleGuard>
             }
           />

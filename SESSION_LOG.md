@@ -849,29 +849,109 @@ with patch.object(claude_client, "get_anthropic_client", return_value=mock_clien
 ---
 
 ## Session 11 — Module 11: City Onboarding Admin
+**Date:** 2026-07-10
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `frontend/src/pages/AdminCitiesPage.tsx` | Full city onboarding admin page — city list, add-city form, per-city ward and station sub-forms |
+| `backend/app/tests/test_city_onboarding.py` | 5 tests: city creation, ward with geometry, station with Point, missing-field 422, invalid geometry 422 |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `frontend/src/features/cities/api.ts` | Added `createCity`, `createWard`, `createStation` mutations; added `CityWithCounts`, `CreateCityPayload`, `CreateWardPayload`, `CreateStationPayload` types; corrected `StationOut` field names to snake_case |
+| `frontend/src/App.tsx` | Replaced `/admin/cities` placeholder with real `<AdminCitiesPage>` component |
+
+### AdminCitiesPage — What It Does
+
+**City list:**
+- Fetches `GET /cities` (sysadmin token required)
+- Each city row shows name, state, timezone, ward count, station count, and "active" status badge
+- Click to expand — lazy-loads wards and stations for that city
+
+**Add City form:**
+- Fields: city name *, state *, timezone (dropdown of IANA TZs), optional config JSON textarea with client-side JSON validation
+- Calls `POST /cities`; invalidates city list on success
+
+**Add Ward sub-form (per city):**
+- Fields: ward name *, population (number), GeoJSON textarea (optional — paste MultiPolygon or any valid GeoJSON geometry)
+- Client-side JSON parse before submit; backend validates geometry type via `validate_geojson_geometry`
+- Calls `POST /cities/{id}/wards`
+
+**Add Station sub-form (per city):**
+- Fields: station name *, external station code *, latitude, longitude, ward selector (populated from loaded wards)
+- Constructs `{"type":"Point","coordinates":[lng,lat]}` GeoJSON from lat/lng inputs
+- Calls `POST /cities/{id}/stations`
+
+### Backend Validation — Already in Place (verified, no changes needed)
+
+| Endpoint | Validation |
+|---|---|
+| `POST /cities` | Pydantic `CityCreate` — requires `name`, `state`; defaults `timezone="Asia/Kolkata"` |
+| `POST /cities/{id}/wards` | `WardCreate` — `name` required; `geometry` validated by `validate_geojson_geometry` (raises 422 on bad type) |
+| `POST /cities/{id}/stations` | `StationCreate` — `name` + `external_station_code` required; `geometry` validated similarly |
+| All write endpoints | `require_role("sysadmin")` — non-sysadmin gets 403 |
+
+### Definition of Done — Module 11 ✅
+
+- [x] `/admin/cities` route replaced — no longer shows placeholder
+- [x] City list loads from `GET /cities` with ward count + station count (lazy-loaded on expand)
+- [x] "Add City" form: name, state, timezone dropdown, optional config JSON — creates via `POST /cities`
+- [x] "Add Ward" sub-form: name, population, GeoJSON paste — creates via `POST /cities/{id}/wards`
+- [x] "Add Station" sub-form: name, code, lat/lng → Point GeoJSON, ward selector — creates via `POST /cities/{id}/stations`
+- [x] All forms show inline error messages on API failure
+- [x] Backend validation verified clean — no missing validation found
+- [x] 5 tests written — total test count: **72**
+- [x] `ruff format . && ruff check .` — clean
+- [x] TypeScript compiles with zero errors (`tsc --noEmit` — verified clean)
+
+### Known issues going into Session 12
+- Ward geometry input is paste-only (no interactive Leaflet drawing). A Leaflet draw plugin (`react-leaflet-draw`) would allow polygon drawing on a map — deferred to avoid adding a new package mid-hackathon.
+- Ward/station counts in the city list header are loaded lazily (only after expanding a city row) — they show "—" until expanded. A backend endpoint returning `CityOut` enriched with counts would fix this.
+- Station `is_active` toggle (deactivating a station) is not yet implemented in the UI — stations can only be created active.
+
+---
+
+## Session 12 — Module 12: Reports & Export
 **Planned — build next**
 
-### PROMPT TO USE AT THE START OF SESSION 11
+### PROMPT TO USE AT THE START OF SESSION 12
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 10 are complete. We have 67 passing tests. The last commit is feat(module-10).
+Modules 00 through 11 are complete. We have 72 passing tests. The last commit is feat(module-11).
 
-Your job this session is Module 11: City Onboarding Admin.
+Your job this session is Module 12: Reports & Export.
 
 Build:
-1. Frontend: `/admin/cities` page — replaces the placeholder (already has `roles=["sysadmin"]` guard).
-   - List existing cities with ward count, station count, and status
-   - "Add City" form: city name, state, timezone (dropdown), optional config JSON
-   - "Add Ward" sub-form per city: ward name, population, draw polygon on Leaflet map (or paste GeoJSON)
-   - "Add Station" sub-form per city: station name, external_station_code, lat/lng fields
-2. Backend: All endpoints already exist (`POST /cities`, `POST /cities/{id}/wards`, `POST /cities/{id}/stations`). Verify they work and add any missing validation.
-3. Tests: ≥3 tests — city creation, ward creation with geometry, station creation.
+1. Backend: `GET /cities/{city_id}/reports/summary` endpoint — returns a JSON summary containing:
+   - City info (name, state, timezone)
+   - AQI stats: current avg AQI, peak AQI (last 7 days), AQI category breakdown (% hours in each category)
+   - Top 3 ranked enforcement queue items (from enforcement module)
+   - Advisory count by language
+   - Forecast: next-24h peak AQI + dominant hour
+   - Attribution: dominant source + breakdown %
+   
+2. Backend: `GET /cities/{city_id}/reports/summary.csv` — same data flattened to CSV rows (one row per stat key).
 
-After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and add the Module 12 session prompt. Commit everything.
+3. Frontend: `/reports` page (replace placeholder, add `RoleGuard` for admin+sysadmin):
+   - Summary cards (reuse Dashboard stat card style)
+   - "Download CSV" button calling the CSV endpoint
+   - Date range selector (last 7 days / 30 days / 90 days) that filters the AQI breakdown
+   - Table showing per-ward avg AQI for the selected period
+
+4. Tests: ≥3 tests — summary endpoint structure, CSV content-type header, ward AQI table.
+
+After building, run ruff format . && ruff check ., update SESSION_LOG.md with Module 13 prompt, and commit.
 ```
 
 ---
