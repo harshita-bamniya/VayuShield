@@ -659,28 +659,91 @@ Evidence brief is a 3-sentence plain-text string — no LLM. Module 09 (Claude A
 ---
 
 ## Session 8 — Module 08: Ward Detail & Map Overlay
+**Date:** 2026-07-10
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/app/tests/test_wards.py` | 5 tests: auth guard, ward list includes avg_aqi, ward detail structure, 404 on missing ward, station readings have aqi_category |
+| `frontend/src/features/wards/api.ts` | Typed API calls: `fetchWardsWithAqi`, `fetchWardDetail` |
+| `frontend/src/components/WardMap.tsx` | Leaflet react-leaflet map — ward polygons coloured by AQI level, tooltip on hover, click navigates to `/wards/:id` |
+| `frontend/src/pages/WardDetail.tsx` | Ward detail page — AQI badge, population, dominant source, advisory count, attribution pie chart (Recharts), station readings table |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/app/modules/cities/schemas.py` | Added `StationReadingBrief`, `WardWithAqiOut`, `WardDetailOut` schemas |
+| `backend/app/modules/cities/repository.py` | Added `get_wards_for_city_with_aqi` (SQL CTE joining latest station readings), `get_ward_detail_full` (ward + readings + attribution + advisory count) |
+| `backend/app/modules/cities/service.py` | Updated `list_wards` to use `WardWithAqiOut`; added `get_ward_detail` |
+| `backend/app/api/v1/cities.py` | Updated `list_wards` response to `WardWithAqiOut`; added `GET /cities/{city_id}/wards/{ward_id}` endpoint |
+| `frontend/src/lib/types.ts` | Added `StationReadingBrief`, `WardWithAqi`, `WardDetail` types |
+| `frontend/src/pages/Dashboard.tsx` | Added ward AQI map section (side-by-side with forecast chart); fetches wards with AQI, passes to `WardMap` component |
+| `frontend/src/App.tsx` | Replaced `/wards/:id` placeholder with real `<WardDetail>` component |
+
+### Ward Detail Endpoint — What it Returns
+
+`GET /api/v1/cities/{city_id}/wards/{ward_id}` returns `WardDetailOut`:
+- All base ward fields (id, city_id, name, geometry, population, vulnerable_site_flags)
+- `avg_aqi: int | None` — average of latest readings from stations assigned to this ward
+- `aqi_category: str | None` — CPCB category string
+- `station_readings: list[StationReadingBrief]` — latest reading per station in ward (pm25, pm10, aqi, aqi_category)
+- `attribution_breakdown: dict[str, float]` — city-level attribution percentages (vehicular_pct, industrial_pct, etc.)
+- `dominant_source: str | None` — from latest city attribution record
+- `advisory_count: int` — count of advisories with `ward_id = this ward`
+
+`GET /api/v1/cities/{city_id}/wards` now returns `WardWithAqiOut` (backward compatible — adds `avg_aqi` + `aqi_category` fields).
+
+### Definition of Done — Module 08 ✅
+
+- [x] `GET /cities/{city_id}/wards/{ward_id}` returns ward detail with station readings + attribution breakdown
+- [x] `GET /cities/{city_id}/wards` enriched with `avg_aqi` and `aqi_category` per ward
+- [x] Leaflet ward polygon map on Dashboard — polygons coloured by AQI level (Good→green, Severe→purple)
+- [x] Ward detail page at `/wards/:id` — AQI badge, attribution pie chart, station readings table, advisory count
+- [x] `/wards/:id` route wired in App.tsx (placeholder replaced)
+- [x] 5 new tests — total test count: **52**
+- [x] `ruff format . && ruff check .` — clean
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues going into Session 9
+- `attribution_breakdown` in ward detail is city-level (no per-ward attribution exists yet). Per-ward attribution would need spatial join of emission sources to ward geometries.
+- `advisory_count` counts advisories where `ward_id = this ward`. Seeded advisories have `ward_id = NULL` (city-level), so the count will be 0 for all wards until ward-targeted advisories are generated.
+- Leaflet map requires internet (tile images from openstreetmap.org). Offline mode would need a local tile server.
+- Map center is hardcoded to Delhi (28.62, 77.21). A future enhancement would fit bounds to the wards returned.
+
+---
+
+## Session 9 — Module 09: Claude API Integration (AI-Enhanced Evidence Briefs & Advisories)
 **Planned — build next**
 
-### PROMPT TO USE AT THE START OF SESSION 8
+### PROMPT TO USE AT THE START OF SESSION 9
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 07 are complete. We have 47 passing tests. The last commit is feat(module-07).
+Modules 00 through 08 are complete. We have 52 passing tests. The last commit is feat(module-08).
 
-Your job this session is Module 08: Ward Detail & Map Overlay.
+Your job this session is Module 09: Claude API Integration.
 
 Build:
-1. Backend: GET /cities/{city_id}/wards/{ward_id} (ward detail with latest station readings + attribution breakdown)
-2. Backend: GET /cities/{city_id}/wards — already exists in Module 02, but add AQI enrichment (join latest station readings avg per ward)
-3. Frontend: Leaflet map on Dashboard showing ward polygons coloured by AQI level (use ward geometry from API)
-4. Frontend: /wards/:id page — ward detail card (AQI, attribution pie chart, station readings table, advisory count for ward)
-5. Wire /wards/:id route in App.tsx (replace placeholder)
-6. Tests (≥3)
+1. Backend: Wire the Anthropic Python SDK. Add `ANTHROPIC_API_KEY` to `core/config.py`. Create `backend/app/core/claude_client.py` — a thin wrapper around `anthropic.AsyncAnthropic` with retry logic and structured prompt helpers.
+2. Backend: Upgrade `enforcement/service.py` `_build_evidence_brief` — replace the 3-sentence template with a real Claude API call (claude-haiku-4-5-20251001 for cost) that produces a 5-sentence enforcement brief from: source name, source type, attribution pct, forecast peak AQI, permit status, days since inspection.
+3. Backend: Upgrade `advisory/service.py` `_build_body_en` and `_build_body_hi` — replace template strings with Claude API calls that produce natural-language advisory text in the correct language.
+4. Backend: Add `POST /api/v1/cities/{city_id}/enforcement/{item_id}/ai-brief` — force-regenerate an evidence brief using Claude (admin/sysadmin only). Store result back to `enforcement_queue.evidence_brief_text`.
+5. Tests: mock the Anthropic client with `unittest.mock.AsyncMock` — do not make real API calls in tests. Write ≥3 tests covering the upgraded paths.
+6. Frontend: On the Enforcement page, add an "AI Brief" button next to each queue item that calls the new endpoint and refreshes the brief text inline.
 
-After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md with what was done and add the Module 09 session prompt at the bottom. Commit everything.
+Key constraint: All Claude calls must be guarded by `if settings.ANTHROPIC_API_KEY` — if the key is absent, fall back to the template-based text. This keeps tests and offline runs working.
+
+Model to use: `claude-haiku-4-5-20251001` (fast, cheap, ideal for structured short-form generation tasks).
+
+After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and commit.
 ```
 
 ---

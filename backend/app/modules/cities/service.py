@@ -10,7 +10,9 @@ from app.modules.cities.schemas import (
     StationCreate,
     StationOut,
     WardCreate,
+    WardDetailOut,
     WardOut,
+    WardWithAqiOut,
 )
 from app.schemas.common import PaginationMeta
 
@@ -44,15 +46,24 @@ async def create_city(db: AsyncSession, body: CityCreate) -> CityOut:
 
 async def list_wards(
     db: AsyncSession, city_id: str, page: int, limit: int
-) -> tuple[list[WardOut], PaginationMeta]:
-    # Ensure city exists
+) -> tuple[list[WardWithAqiOut], PaginationMeta]:
     city = await repo.get_city_by_id(db, city_id)
     if not city:
         raise NotFoundError(f"City '{city_id}' not found")
-    wards, total = await repo.get_wards_for_city(db, city_id, page, limit)
-    return [WardOut.model_validate(w) for w in wards], PaginationMeta(
+    wards, total = await repo.get_wards_for_city_with_aqi(db, city_id, page, limit)
+    return [WardWithAqiOut.model_validate(w) for w in wards], PaginationMeta(
         page=page, limit=limit, total=total
     )
+
+
+async def get_ward_detail(db: AsyncSession, city_id: str, ward_id: str) -> WardDetailOut:
+    city = await repo.get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+    ward = await repo.get_ward_detail_full(db, ward_id)
+    if not ward or ward.get("city_id") != city_id:
+        raise NotFoundError(f"Ward '{ward_id}' not found in city '{city_id}'")
+    return WardDetailOut.model_validate(ward)
 
 
 async def create_ward(db: AsyncSession, city_id: str, body: WardCreate) -> WardOut:

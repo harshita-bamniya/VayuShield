@@ -8,6 +8,7 @@ import Advisories from "@/pages/Advisories";
 import Dashboard from "@/pages/Dashboard";
 import Enforcement from "@/pages/Enforcement";
 import Login from "@/pages/Login";
+import WardDetail from "@/pages/WardDetail";
 import type { UserOut } from "@/lib/types";
 
 const queryClient = new QueryClient({
@@ -68,7 +69,7 @@ export default function App() {
             path="/wards/:id"
             element={
               <RoleGuard>
-                <Placeholder name="Ward Detail (Module 08)" />
+                <WardDetail />
               </RoleGuard>
             }
           />

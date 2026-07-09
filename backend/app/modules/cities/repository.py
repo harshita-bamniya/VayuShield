@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.aqi import aqi_category as get_aqi_category
 from app.modules.cities.models import City, Station, Ward
 
 # ── Cities ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,126 @@ async def get_ward_by_id(db: AsyncSession, ward_id: str) -> dict | None:
     )
     row = rows.first()
     return dict(row._mapping) if row else None
+
+
+async def get_wards_for_city_with_aqi(
+    db: AsyncSession, city_id: str, page: int, limit: int
+) -> tuple[list[dict], int]:
+    """Same as get_wards_for_city but enriched with avg AQI from latest station readings."""
+    offset = (page - 1) * limit
+    count_result = await db.execute(
+        select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
+    )
+    total = count_result.scalar_one()
+
+    rows = await db.execute(
+        text(
+            """
+            WITH latest_readings AS (
+                SELECT DISTINCT ON (station_id)
+                    station_id, aqi
+                FROM station_readings
+                ORDER BY station_id, ts DESC
+            )
+            SELECT
+                w.id,
+                w.city_id,
+                w.name,
+                w.population,
+                w.vulnerable_site_flags,
+                w.created_at,
+                ST_AsGeoJSON(w.geometry) AS geometry,
+                AVG(lr.aqi)::int AS avg_aqi
+            FROM wards w
+            LEFT JOIN stations s ON s.ward_id = w.id AND s.is_active = true
+            LEFT JOIN latest_readings lr ON lr.station_id = s.id
+            WHERE w.city_id = :city_id
+            GROUP BY w.id, w.city_id, w.name, w.population,
+                     w.vulnerable_site_flags, w.created_at, w.geometry
+            ORDER BY w.name
+            LIMIT :limit OFFSET :offset
+            """
+        ),
+        {"city_id": city_id, "limit": limit, "offset": offset},
+    )
+    wards = []
+    for r in rows:
+        d = dict(r._mapping)
+        avg = d.get("avg_aqi")
+        d["aqi_category"] = get_aqi_category(avg) if avg is not None else None
+        wards.append(d)
+    return wards, total
+
+
+async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
+    """Ward info + latest station readings + city attribution + advisory count."""
+    ward = await get_ward_by_id(db, ward_id)
+    if not ward:
+        return None
+
+    # Latest station readings for stations assigned to this ward
+    reading_rows = await db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (s.id)
+                s.id AS station_id,
+                s.name AS station_name,
+                s.external_station_code,
+                sr.ts,
+                sr.pm25,
+                sr.pm10,
+                sr.aqi,
+                sr.is_stale
+            FROM stations s
+            LEFT JOIN station_readings sr ON sr.station_id = s.id
+            WHERE s.ward_id = :ward_id AND s.is_active = true
+            ORDER BY s.id, sr.ts DESC NULLS LAST
+            """
+        ),
+        {"ward_id": ward_id},
+    )
+    readings = []
+    for r in reading_rows:
+        d = dict(r._mapping)
+        d["aqi_category"] = get_aqi_category(d["aqi"]) if d.get("aqi") is not None else None
+        readings.append(d)
+
+    valid_aqis = [r["aqi"] for r in readings if r.get("aqi") is not None]
+    avg_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else None
+
+    # Latest city-level attribution breakdown
+    attr_row = await db.execute(
+        text(
+            """
+            SELECT dominant_source, vehicular_pct, industrial_pct, construction_pct,
+                   agricultural_pct, fire_pct, other_pct
+            FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
+            """
+        ),
+        {"city_id": ward["city_id"]},
+    )
+    attr = attr_row.first()
+    attribution_breakdown: dict[str, Any] = {}
+    dominant_source = None
+    if attr:
+        a = dict(attr._mapping)
+        dominant_source = a.pop("dominant_source", None)
+        attribution_breakdown = {k: v for k, v in a.items() if v is not None}
+
+    # Advisory count for this specific ward
+    count_row = await db.execute(
+        text("SELECT COUNT(*) FROM advisories WHERE ward_id = :ward_id"),
+        {"ward_id": ward_id},
+    )
+    advisory_count = int(count_row.scalar() or 0)
+
+    ward["avg_aqi"] = avg_aqi
+    ward["aqi_category"] = get_aqi_category(avg_aqi) if avg_aqi is not None else None
+    ward["station_readings"] = readings
+    ward["attribution_breakdown"] = attribution_breakdown
+    ward["dominant_source"] = dominant_source
+    ward["advisory_count"] = advisory_count
+    return ward
 
 
 async def create_ward(

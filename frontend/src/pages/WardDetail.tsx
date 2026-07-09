@@ -1,0 +1,216 @@
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { fetchWardDetail } from "@/features/wards/api";
+import { useCities } from "@/features/cities/useCities";
+
+const PIE_COLORS: Record<string, string> = {
+  vehicular_pct: "#f97316",
+  industrial_pct: "#8b5cf6",
+  construction_pct: "#eab308",
+  agricultural_pct: "#22c55e",
+  fire_pct: "#ef4444",
+  other_pct: "#94a3b8",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  vehicular_pct: "Vehicular",
+  industrial_pct: "Industrial",
+  construction_pct: "Construction",
+  agricultural_pct: "Agricultural",
+  fire_pct: "Fire",
+  other_pct: "Other",
+};
+
+function aqiBadgeClass(aqi: number | null): string {
+  if (!aqi) return "bg-slate-500";
+  if (aqi <= 50) return "bg-green-500";
+  if (aqi <= 100) return "bg-lime-500";
+  if (aqi <= 200) return "bg-yellow-500";
+  if (aqi <= 300) return "bg-orange-500";
+  if (aqi <= 400) return "bg-red-500";
+  return "bg-purple-600";
+}
+
+export default function WardDetail() {
+  const { id: wardId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { selectedCityId } = useCities();
+
+  const { data: ward, isLoading, isError } = useQuery({
+    queryKey: ["ward-detail", selectedCityId, wardId],
+    queryFn: () => fetchWardDetail(selectedCityId!, wardId!),
+    enabled: !!selectedCityId && !!wardId,
+  });
+
+  if (!selectedCityId) {
+    return (
+      <div className="p-8 text-slate-300">
+        No city selected. Return to{" "}
+        <button className="underline text-sky-400" onClick={() => navigate("/dashboard")}>
+          Dashboard
+        </button>
+        .
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return <div className="p-8 text-slate-400">Loading ward details…</div>;
+  }
+
+  if (isError || !ward) {
+    return (
+      <div className="p-8 text-red-400">
+        Ward not found.{" "}
+        <button className="underline text-sky-400" onClick={() => navigate(-1)}>
+          Go back
+        </button>
+        .
+      </div>
+    );
+  }
+
+  const pieData = Object.entries(ward.attribution_breakdown)
+    .filter(([, v]) => v > 0)
+    .map(([key, value]) => ({
+      name: SOURCE_LABELS[key] ?? key,
+      value: Math.round(value * 10) / 10,
+      color: PIE_COLORS[key] ?? "#94a3b8",
+    }));
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100">
+      {/* Top bar */}
+      <div className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center gap-4">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="text-sky-400 hover:text-sky-300 text-sm"
+        >
+          ← Dashboard
+        </button>
+        <h1 className="text-xl font-bold">{ward.name}</h1>
+        <span className="text-slate-400 text-sm">Ward Detail</span>
+      </div>
+
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-800 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Current AQI</p>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-2xl font-bold px-2 py-0.5 rounded ${aqiBadgeClass(ward.avg_aqi)} text-white`}
+              >
+                {ward.avg_aqi ?? "—"}
+              </span>
+            </div>
+            {ward.aqi_category && (
+              <p className="text-slate-400 text-xs mt-1">{ward.aqi_category}</p>
+            )}
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Population</p>
+            <p className="text-2xl font-bold">
+              {ward.population ? ward.population.toLocaleString() : "—"}
+            </p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Dominant Source</p>
+            <p className="text-lg font-semibold capitalize">
+              {ward.dominant_source ?? "—"}
+            </p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">
+              Advisories (ward)
+            </p>
+            <p className="text-2xl font-bold">{ward.advisory_count}</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Attribution pie chart */}
+          <div className="bg-slate-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-3 text-slate-200">
+              Pollution Source Attribution
+              <span className="ml-2 text-xs text-slate-500">(city-level)</span>
+            </h2>
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, value }) => `${name} ${value}%`}
+                    labelLine={false}
+                  >
+                    {pieData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => `${v}%`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-slate-500 text-sm py-8 text-center">
+                No attribution data — run attribution compute first.
+              </p>
+            )}
+          </div>
+
+          {/* Station readings table */}
+          <div className="bg-slate-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-3 text-slate-200">Station Readings</h2>
+            {ward.station_readings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-slate-400 text-xs border-b border-slate-700">
+                      <th className="text-left pb-2">Station</th>
+                      <th className="text-right pb-2">AQI</th>
+                      <th className="text-right pb-2">PM2.5</th>
+                      <th className="text-right pb-2">PM10</th>
+                      <th className="text-left pb-2 pl-2">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ward.station_readings.map((r) => (
+                      <tr key={r.station_id} className="border-b border-slate-700/50">
+                        <td className="py-2 text-slate-300">{r.station_name ?? r.station_id}</td>
+                        <td className="py-2 text-right font-mono font-bold">
+                          {r.aqi ?? "—"}
+                        </td>
+                        <td className="py-2 text-right font-mono text-slate-300">
+                          {r.pm25 != null ? r.pm25.toFixed(1) : "—"}
+                        </td>
+                        <td className="py-2 text-right font-mono text-slate-300">
+                          {r.pm10 != null ? r.pm10.toFixed(1) : "—"}
+                        </td>
+                        <td className="py-2 pl-2 text-slate-400 text-xs">
+                          {r.aqi_category ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-slate-500 text-sm py-8 text-center">
+                No stations assigned to this ward.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

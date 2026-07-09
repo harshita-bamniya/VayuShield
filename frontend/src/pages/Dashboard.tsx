@@ -8,6 +8,8 @@ import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
 import { fetchPendingCount } from "@/features/enforcement/api";
 import { fetchAdvisoryCount } from "@/features/advisory/api";
+import { fetchWardsWithAqi } from "@/features/wards/api";
+import WardMap from "@/components/WardMap";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -78,6 +80,13 @@ export default function Dashboard() {
   const { data: advisoryCount } = useQuery({
     queryKey: ["advisory-count", selectedCityId],
     queryFn: () => fetchAdvisoryCount(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: wards = [] } = useQuery({
+    queryKey: ["wards-aqi", selectedCityId],
+    queryFn: () => fetchWardsWithAqi(selectedCityId!),
     enabled: !!selectedCityId,
     staleTime: 1000 * 60 * 5,
   });
@@ -221,23 +230,43 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Forecast chart */}
-          {forecastLoading || !selectedCityId ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center justify-center min-h-64">
-              <div className="text-center text-slate-600">
-                <p className="text-4xl mb-3">📈</p>
-                <p className="text-sm font-medium">
-                  {selectedCityId ? "Loading forecast…" : "Select a city to see the forecast"}
-                </p>
+          {/* Ward map + forecast side by side */}
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            {/* Ward AQI map */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style={{ height: 340 }}>
+              <div className="px-4 pt-3 pb-2 border-b border-slate-800">
+                <p className="text-sm font-semibold text-slate-200">Ward AQI Map</p>
+                <p className="text-xs text-slate-500">Click a ward to view details</p>
+              </div>
+              <div style={{ height: 290 }}>
+                {wards.length > 0 ? (
+                  <WardMap wards={wards} onWardClick={(wardId) => navigate(`/wards/${wardId}`)} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-600 text-sm">
+                    {selectedCityId ? "Loading wards…" : "Select a city"}
+                  </div>
+                )}
               </div>
             </div>
-          ) : forecast ? (
-            <ForecastChart
-              points={forecast.points}
-              generatedAt={forecast.generated_at}
-              peakAqi={forecast.peak_aqi}
-            />
-          ) : null}
+
+            {/* Forecast chart */}
+            {forecastLoading || !selectedCityId ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center justify-center min-h-64">
+                <div className="text-center text-slate-600">
+                  <p className="text-4xl mb-3">📈</p>
+                  <p className="text-sm font-medium">
+                    {selectedCityId ? "Loading forecast…" : "Select a city to see the forecast"}
+                  </p>
+                </div>
+              </div>
+            ) : forecast ? (
+              <ForecastChart
+                points={forecast.points}
+                generatedAt={forecast.generated_at}
+                peakAqi={forecast.peak_aqi}
+              />
+            ) : null}
+          </div>
         </main>
       </div>
     </div>

@@ -65,7 +65,38 @@ class WardOut(BaseModel):
         return v
 
 
-# ── Station ──────────────────────────────────────────────────────────────────
+# ── Ward enriched views ───────────────────────────────────────────────────────
+
+
+class StationReadingBrief(BaseModel):
+    station_id: str | None = None
+    station_name: str | None = None
+    external_station_code: str | None = None
+    ts: datetime | None = None
+    pm25: float | None = None
+    pm10: float | None = None
+    aqi: int | None = None
+    aqi_category: str | None = None
+    is_stale: bool | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class WardWithAqiOut(WardOut):
+    avg_aqi: int | None = None
+    aqi_category: str | None = None
+
+
+class WardDetailOut(WardOut):
+    avg_aqi: int | None = None
+    aqi_category: str | None = None
+    station_readings: list[StationReadingBrief] = []
+    attribution_breakdown: dict[str, Any] = {}
+    dominant_source: str | None = None
+    advisory_count: int = 0
+
+
+# ── Station ───────────────────────────────────────────────────────────────────
 
 
 class StationCreate(BaseModel):

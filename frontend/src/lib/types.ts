@@ -26,6 +26,37 @@ export interface Ward {
   population: number;
 }
 
+export interface StationReadingBrief {
+  station_id: string | null;
+  station_name: string | null;
+  external_station_code: string | null;
+  ts: string | null;
+  pm25: number | null;
+  pm10: number | null;
+  aqi: number | null;
+  aqi_category: string | null;
+  is_stale: boolean | null;
+}
+
+export interface WardWithAqi {
+  id: string;
+  city_id: string;
+  name: string;
+  geometry: Record<string, unknown> | null;
+  population: number | null;
+  vulnerable_site_flags: Record<string, unknown>;
+  created_at: string;
+  avg_aqi: number | null;
+  aqi_category: string | null;
+}
+
+export interface WardDetail extends WardWithAqi {
+  station_readings: StationReadingBrief[];
+  attribution_breakdown: Record<string, number>;
+  dominant_source: string | null;
+  advisory_count: number;
+}
+
 export type SourceCategory = "vehicular" | "industrial" | "construction" | "agricultural";
 
 export interface Attribution {

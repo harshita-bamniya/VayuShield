@@ -11,7 +11,9 @@ from app.modules.cities.schemas import (
     StationCreate,
     StationOut,
     WardCreate,
+    WardDetailOut,
     WardOut,
+    WardWithAqiOut,
 )
 from app.schemas.common import ApiEnvelope
 
@@ -54,7 +56,7 @@ async def get_city(
 # ── Ward endpoints ────────────────────────────────────────────────────────────
 
 
-@router.get("/cities/{city_id}/wards", response_model=ApiEnvelope[list[WardOut]])
+@router.get("/cities/{city_id}/wards", response_model=ApiEnvelope[list[WardWithAqiOut]])
 async def list_wards(
     city_id: str,
     page: int = Query(1, ge=1),
@@ -64,6 +66,17 @@ async def list_wards(
 ):
     wards, meta = await service.list_wards(db, city_id, page, limit)
     return ApiEnvelope(data=wards, meta=meta)
+
+
+@router.get("/cities/{city_id}/wards/{ward_id}", response_model=ApiEnvelope[WardDetailOut])
+async def get_ward(
+    city_id: str,
+    ward_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+):
+    ward = await service.get_ward_detail(db, city_id, ward_id)
+    return ApiEnvelope(data=ward)
 
 
 @router.post("/cities/{city_id}/wards", response_model=ApiEnvelope[WardOut], status_code=201)
