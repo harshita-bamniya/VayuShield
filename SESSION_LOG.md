@@ -987,7 +987,39 @@ with patch.object(claude_client, "get_anthropic_client", return_value=mock_clien
 ---
 
 ## Session 13 — Module 13: Polish & Demo Prep
-**Planned — build next**
+**Date:** 2026-07-10
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/ReportsPage.tsx` | Fixed CSV download: replaced `window.open(buildCsvUrl(...))` with `fetch()` → `Blob` → anchor-click so Authorization header is sent properly. Removed `buildCsvUrl` import (unused). |
+| `backend/app/db/seed.py` | Fixed station ward assignments: Anand Vihar → `WARD_DWARKA_ID`, ITO → `WARD_CP_ID` (was `None` for AV). Expanded `_seed_advisories` from 2 to 12 entries (all 6 AQI levels × English + Hindi). |
+| `frontend/src/pages/Dashboard.tsx` | Added "Reports" nav item (📄) to sidebar nav list. |
+| `frontend/src/pages/Enforcement.tsx` | Added "Reports" nav item (📄) to sidebar nav list. |
+| `frontend/src/pages/Advisories.tsx` | Added "Reports" nav item (📄) to sidebar nav list. |
+
+### Definition of Done — Module 13 ✅
+
+- [x] CSV download uses `fetch()` → Blob → anchor-click — Authorization header sent correctly
+- [x] Anand Vihar station assigned to Dwarka ward; ITO station assigned to Connaught Place ward
+- [x] Ward AQI table in reports is non-empty on first boot (both wards have station readings)
+- [x] "Reports" nav item added to Dashboard, Enforcement, and Advisories sidebar nav
+- [x] `_seed_advisories` generates 12 advisories (6 AQI levels × 2 languages) on first boot
+- [x] `ruff format . && ruff check .` — clean (98 files unchanged, all checks passed)
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues / future work
+- `docker-compose up --build` smoke test should be run manually before the demo to verify end-to-end flow (requires Docker Desktop).
+- Ward geometry polygons are simplified rectangles — replace with real GNCD ward boundaries for production.
+- Advisory idempotency (`advisory_exists_today`) means re-seeding on the same calendar day is skipped — restart with a fresh DB to get all 12 seeded.
+
+---
+
+## Session 13 — Module 13: Polish & Demo Prep (original plan)
 
 ### PROMPT TO USE AT THE START OF SESSION 13
 

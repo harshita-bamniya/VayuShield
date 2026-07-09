@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
   { to: "/enforcement", label: "Enforcement", icon: "🚨" },
   { to: "/advisories", label: "Advisories", icon: "📢" },
+  { to: "/reports", label: "Reports", icon: "📄" },
   { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
 ];
 

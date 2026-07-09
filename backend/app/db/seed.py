@@ -179,7 +179,7 @@ async def _seed_delhi(session) -> None:
         {
             "id": STATION_AV_ID,
             "city_id": DELHI_CITY_ID,
-            "ward_id": None,
+            "ward_id": WARD_DWARKA_ID,
             "code": "DPCC_ANAND_VIHAR",
             "name": "Anand Vihar",
             "geom": json.dumps(STATION_AV_GEOJSON),
@@ -513,7 +513,7 @@ async def _seed_enforcement_queue(session) -> None:
 
 
 async def _seed_advisories(session) -> None:
-    """Seed 2 sample advisories for Delhi (Module 07) — one English, one Hindi."""
+    """Seed 12 sample advisories for Delhi — all 6 AQI levels × English + Hindi."""
     exists = await session.execute(
         text("SELECT id FROM advisories WHERE city_id = :city_id LIMIT 1"),
         {"city_id": DELHI_CITY_ID},
@@ -522,37 +522,105 @@ async def _seed_advisories(session) -> None:
         logger.info("Advisories seed already present, skipping")
         return
 
-    advisories = [
-        {
-            "id": str(uuid.uuid4()),
-            "language": "en",
-            "title": "Air Quality Advisory — Poor Air Quality Warning",
-            "body": (
-                "Current AQI is 245 (Poor), primarily driven by vehicular emissions "
-                "(vehicles and transport). Air quality is poor and likely to cause breathing "
-                "discomfort to most people. Avoid prolonged outdoor physical activity — "
-                "particularly jogging, cycling, or sports. Wear an N95/FFP2 mask if outdoor "
-                "exposure is unavoidable. People with respiratory or cardiovascular conditions "
-                "should stay indoors."
+    _LEVELS = [
+        (
+            "Good",
+            "vehicular",
+            35,
+            "Air quality is Good — safe for all outdoor activities.",
+            "वायु गुणवत्ता अच्छी है — सभी बाहरी गतिविधियाँ सुरक्षित हैं।",
+        ),
+        (
+            "Satisfactory",
+            "vehicular",
+            75,
+            "Air quality is Satisfactory — sensitive individuals may experience minor discomfort.",
+            "वायु गुणवत्ता संतोषजनक है — संवेदनशील व्यक्तियों को हल्की परेशानी हो सकती है।",
+        ),
+        (
+            "Moderate",
+            "industrial",
+            150,
+            "Air quality is Moderate — prolonged outdoor exertion may cause discomfort.",
+            "वायु गुणवत्ता मध्यम है — लंबे समय तक बाहर परिश्रम से परेशानी हो सकती है।",
+        ),
+        (
+            "Poor",
+            "vehicular",
+            245,
+            (
+                "Current AQI is 245 (Poor), driven by vehicular emissions. "
+                "Avoid prolonged outdoor physical activity. "
+                "Wear an N95/FFP2 mask if outdoor exposure is unavoidable. "
+                "People with respiratory conditions should stay indoors."
             ),
-            "aqi_level": "Poor",
-            "dominant_source": "vehicular",
-        },
-        {
-            "id": str(uuid.uuid4()),
-            "language": "hi",
-            "title": "वायु गुणवत्ता सलाह — खराब वायु गुणवत्ता चेतावनी",
-            "body": (
-                "वर्तमान AQI 245 (Poor) है, जो मुख्यतः वाहनों के धुएं के कारण है। "
-                "वायु गुणवत्ता खराब है और अधिकांश लोगों को सांस लेने में परेशानी हो सकती है। "
+            (
+                "वर्तमान AQI 245 (खराब) है, जो मुख्यतः वाहनों के धुएं के कारण है। "
                 "लंबे समय तक बाहर शारीरिक गतिविधि से बचें। "
-                "यदि बाहर जाना अपरिहार्य हो तो N95/FFP2 मास्क पहनें। "
-                "श्वसन या हृदय रोग से पीड़ित लोग घर के अंदर रहें।"
+                "यदि बाहर जाना हो तो N95/FFP2 मास्क पहनें। "
+                "श्वसन रोग से पीड़ित लोग घर के अंदर रहें।"
             ),
-            "aqi_level": "Poor",
-            "dominant_source": "vehicular",
-        },
+        ),
+        (
+            "Very Poor",
+            "industrial",
+            340,
+            (
+                "Air quality is Very Poor (AQI 340) due to industrial emissions. "
+                "Avoid all outdoor activities. Keep windows closed. "
+                "Use air purifiers indoors if available. "
+                "Children, elderly, and those with health conditions must stay indoors."
+            ),
+            (
+                "वायु गुणवत्ता बहुत खराब (AQI 340) है, औद्योगिक उत्सर्जन के कारण। "
+                "सभी बाहरी गतिविधियाँ बंद रखें। खिड़कियाँ बंद रखें। "
+                "घर के अंदर एयर प्यूरीफायर का उपयोग करें। "
+                "बच्चे, बुजुर्ग और बीमार लोग घर के अंदर रहें।"
+            ),
+        ),
+        (
+            "Severe",
+            "agricultural",
+            430,
+            (
+                "Severe air quality emergency (AQI 430) — agricultural stubble burning. "
+                "Stay indoors with windows sealed. Avoid all outdoor exposure. "
+                "Seek medical attention if breathing difficulty occurs. "
+                "All outdoor events and construction are suspended."
+            ),
+            (
+                "गंभीर वायु गुणवत्ता आपातकाल (AQI 430) — कृषि अवशेष जलाने के कारण। "
+                "खिड़कियाँ बंद कर घर के अंदर रहें। बाहर न जाएं। "
+                "सांस लेने में कठिनाई होने पर तुरंत चिकित्सा सहायता लें। "
+                "सभी बाहरी कार्यक्रम और निर्माण कार्य निलंबित हैं।"
+            ),
+        ),
     ]
+
+    advisories = []
+    for level, source, aqi_val, body_en, body_hi in _LEVELS:
+        title_en = f"Air Quality Advisory — {level} Air Quality"
+        title_hi = f"वायु गुणवत्ता सलाह — {level} स्तर"
+        advisories.append(
+            {
+                "id": str(uuid.uuid4()),
+                "language": "en",
+                "title": title_en,
+                "body": body_en,
+                "aqi_level": level,
+                "dominant_source": source,
+            }
+        )
+        advisories.append(
+            {
+                "id": str(uuid.uuid4()),
+                "language": "hi",
+                "title": title_hi,
+                "body": body_hi,
+                "aqi_level": level,
+                "dominant_source": source,
+            }
+        )
 
     for adv in advisories:
         await session.execute(

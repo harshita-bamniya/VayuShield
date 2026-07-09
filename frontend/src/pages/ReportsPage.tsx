@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { buildCsvUrl, fetchReportSummary } from "@/features/reports/api";
+import { fetchReportSummary } from "@/features/reports/api";
 import type { WardAqiRow } from "@/features/reports/api";
 
 const NAV_ITEMS = [
@@ -101,9 +101,23 @@ export default function ReportsPage() {
     navigate("/login");
   };
 
-  const handleDownloadCsv = () => {
+  const handleDownloadCsv = async () => {
     if (!cityId) return;
-    window.open(buildCsvUrl(cityId, days), "_blank");
+    const token = localStorage.getItem("access_token") ?? "";
+    const url = `/api/v1/cities/${cityId}/reports/summary.csv?days=${days}`;
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = `vayushield-report-${cityId}-${days}d.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(href);
   };
 
   return (
