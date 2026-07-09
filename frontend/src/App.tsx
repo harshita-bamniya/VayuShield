@@ -11,6 +11,7 @@ import Login from "@/pages/Login";
 import WardDetail from "@/pages/WardDetail";
 import InspectorPage from "@/pages/InspectorPage";
 import AdminCitiesPage from "@/pages/AdminCitiesPage";
+import ReportsPage from "@/pages/ReportsPage";
 import type { UserOut } from "@/lib/types";
 
 const queryClient = new QueryClient({
@@ -96,6 +97,14 @@ export default function App() {
             element={
               <RoleGuard roles={["sysadmin"]}>
                 <AdminCitiesPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <RoleGuard roles={["admin", "sysadmin"]}>
+                <ReportsPage />
               </RoleGuard>
             }
           />
