@@ -951,7 +951,11 @@ Build:
 
 4. Tests: ≥3 tests — summary endpoint structure, CSV content-type header, ward AQI table.
 
-After building, run ruff format . && ruff check ., update SESSION_LOG.md with Module 13 prompt, and commit.
+After building everything:
+1. Run `ruff format . && ruff check .` to lint check the backend.
+2. Update SESSION_LOG.md — mark Module 12 as COMPLETE with files created/modified, definition of done checklist, and known issues going into Session 13.
+3. Add the Module 13 session prompt at the bottom of SESSION_LOG.md (same format as this one — include the "update doc and commit" instruction).
+4. Commit everything with message `feat(module-12): Reports & Export`.
 ```
 
 ---
