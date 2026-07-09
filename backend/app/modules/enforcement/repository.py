@@ -142,6 +142,18 @@ async def upsert_queue_item(
         return item_id
 
 
+async def update_evidence_brief(db: AsyncSession, item_id: str, brief: str) -> bool:
+    result = await db.execute(
+        text(
+            "UPDATE enforcement_queue SET evidence_brief_text = :brief, updated_at = NOW() "
+            "WHERE id = :id"
+        ),
+        {"brief": brief, "id": item_id},
+    )
+    await db.commit()
+    return result.rowcount > 0
+
+
 async def update_status(db: AsyncSession, item_id: str, status: str) -> bool:
     result = await db.execute(
         text("UPDATE enforcement_queue SET status = :status, updated_at = NOW() WHERE id = :id"),

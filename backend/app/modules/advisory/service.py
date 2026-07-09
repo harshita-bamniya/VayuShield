@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.aqi import aqi_category
+from app.core.claude_client import generate_text
 from app.modules.advisory import repository as repo
 from app.modules.advisory.schemas import AdvisoryGenerateResponse, AdvisoryOut
 
@@ -160,13 +161,42 @@ _BUILDERS = {
 }
 
 
-def _build_advisory_text(
+def _build_advisory_text_template(
     language: str, aqi_level: str, dominant_source: str | None, aqi_value: int
 ) -> tuple[str, str]:
-    """Return (title, body) for the given language. Falls back to English."""
+    """Return (title, body) using static templates. Falls back to English."""
     titles, body_fn = _BUILDERS.get(language, _BUILDERS["en"])
     title = titles.get(aqi_level, titles.get("Moderate", "Air Quality Advisory"))
     body = body_fn(aqi_level, dominant_source, aqi_value)
+    return title, body
+
+
+_LANG_NAMES = {"en": "English", "hi": "Hindi"}
+
+
+async def _build_advisory_text(
+    language: str, aqi_level: str, dominant_source: str | None, aqi_value: int
+) -> tuple[str, str]:
+    """Return (title, body) — tries Claude first, falls back to templates."""
+    lang_name = _LANG_NAMES.get(language, "English")
+    src_label = _SOURCE_LABEL_EN.get(dominant_source or "other", "mixed sources")
+    prompt = (
+        f"Write a public health air quality advisory in {lang_name}. "
+        f"Current AQI: {aqi_value} ({aqi_level}). Dominant pollution source: {src_label}. "
+        f"The advisory should be 4-5 sentences, factual, and give actionable health guidance "
+        f"appropriate for the AQI level. Do not include a title or subject line — body text only."
+    )
+    ai_body = await generate_text(
+        prompt,
+        system=(
+            "You are a public health official issuing air quality advisories. "
+            "Write clear, concise, actionable advisories. No headers, no bullet points."
+        ),
+        max_tokens=350,
+    )
+    titles, body_fn = _BUILDERS.get(language, _BUILDERS["en"])
+    title = titles.get(aqi_level, titles.get("Moderate", "Air Quality Advisory"))
+    body = ai_body if ai_body else body_fn(aqi_level, dominant_source, aqi_value)
     return title, body
 
 
@@ -231,7 +261,7 @@ async def generate_advisories(
             skipped += 1
             continue
 
-        title, body = _build_advisory_text(lang, aqi_level, dominant_source, aqi_value)
+        title, body = await _build_advisory_text(lang, aqi_level, dominant_source, aqi_value)
         row = await repo.create_advisory(
             db=db,
             city_id=city_id,

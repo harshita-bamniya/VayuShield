@@ -77,6 +77,16 @@ export async function logInspection(
   return resp.data.data;
 }
 
+export async function regenerateAiBrief(
+  cityId: string,
+  itemId: string,
+): Promise<EnforcementItem> {
+  const resp = await client.post<{ data: EnforcementItem }>(
+    `/cities/${cityId}/enforcement/${itemId}/ai-brief`,
+  );
+  return resp.data.data;
+}
+
 export async function fetchPendingCount(cityId: string): Promise<number> {
   const resp = await client.get<{ data: { pending: number } }>(
     `/cities/${cityId}/enforcement-count`,

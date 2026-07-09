@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.claude_client import generate_text
 from app.modules.enforcement import repository as repo
 from app.modules.enforcement.schemas import (
     EmissionSourceBrief,
@@ -45,7 +46,7 @@ def _attribution_weight(source_type: str, breakdown: dict) -> float:
     return min(pct / 100.0, 1.0)
 
 
-def _build_evidence_brief(
+def _build_evidence_brief_template(
     source_name: str,
     source_type: str,
     permit_status: str,
@@ -67,6 +68,126 @@ def _build_evidence_brief(
         f"pollution attribution; the 24-hour peak forecast AQI is {peak_aqi_24h:.0f}. "
         f"The {permit_note} and the site was last inspected {days_str} ago."
     )
+
+
+async def _generate_evidence_brief(
+    source_name: str,
+    source_type: str,
+    permit_status: str,
+    priority_score: float,
+    attribution_pct: float,
+    peak_aqi_24h: float,
+    days_since: int | None,
+) -> str:
+    """Generate evidence brief — tries Claude first, falls back to template."""
+    days_str = f"{days_since} days" if days_since is not None else "never"
+    prompt = (
+        f"Write a concise 5-sentence enforcement evidence brief for an air quality inspector. "
+        f"Details: source name = {source_name}, type = {source_type}, "
+        f"priority score = {priority_score:.2f}/1.00, "
+        f"attribution = {attribution_pct:.1f}% of city pollution, "
+        f"24h peak forecast AQI = {peak_aqi_24h:.0f}, "
+        f"permit status = {permit_status}, last inspected = {days_str} ago. "
+        f"Be factual, concise, and professional. Do not use bullet points."
+    )
+    ai_text = await generate_text(
+        prompt,
+        system=(
+            "You are an environmental compliance officer writing enforcement briefs. "
+            "Produce factual, professional text only. No preamble, no headers, no lists."
+        ),
+        max_tokens=300,
+    )
+    if ai_text:
+        return ai_text
+    return _build_evidence_brief_template(
+        source_name,
+        source_type,
+        permit_status,
+        priority_score,
+        attribution_pct,
+        peak_aqi_24h,
+        days_since,
+    )
+
+
+async def regenerate_ai_brief(
+    db: AsyncSession,
+    item_id: str,
+    city_id: str,
+) -> EnforcementItemOut | None:
+    """Force-regenerate the evidence brief for an item using Claude, persist it, and return."""
+    row = await repo.get_item(db, item_id, city_id)
+    if not row:
+        return None
+
+    # Reconstruct the context needed to call the brief generator
+    peak_aqi_24h = 200.0
+    now = datetime.now(UTC)
+    fc_row = await db.execute(
+        text(
+            """
+            SELECT MAX(predicted_aqi) AS peak_aqi
+            FROM forecasts
+            WHERE city_id = :city_id AND is_stale = false
+              AND forecast_for_ts BETWEEN :now AND :horizon
+            """
+        ),
+        {"city_id": city_id, "now": now, "horizon": now + timedelta(hours=24)},
+    )
+    fc = fc_row.fetchone()
+    if fc and fc[0]:
+        peak_aqi_24h = float(fc[0])
+
+    attr_row = await db.execute(
+        text(
+            """
+            SELECT vehicular_pct, industrial_pct, construction_pct,
+                   agricultural_pct, fire_pct, other_pct
+            FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
+            """
+        ),
+        {"city_id": city_id},
+    )
+    attr = attr_row.fetchone()
+    breakdown: dict = {}
+    if attr:
+        breakdown = {
+            "vehicular_pct": attr[0] or 0.0,
+            "industrial_pct": attr[1] or 0.0,
+            "construction_pct": attr[2] or 0.0,
+            "agricultural_pct": attr[3] or 0.0,
+            "fire_pct": attr[4] or 0.0,
+            "other_pct": attr[5] or 0.0,
+        }
+
+    src_type = row["src_type"]
+    src_name = row["src_name"]
+    permit_status = row["src_permit_status"]
+    priority_score = float(row["priority_score"])
+    attribution_pct = breakdown.get(f"{src_type}_pct", 0.0)
+    last_inspected_at = row.get("src_last_inspected_at")
+    days_since: int | None = None
+    if last_inspected_at:
+        ts = (
+            last_inspected_at.replace(tzinfo=UTC)
+            if last_inspected_at.tzinfo is None
+            else last_inspected_at
+        )
+        days_since = (now - ts).days
+
+    brief = await _generate_evidence_brief(
+        source_name=src_name,
+        source_type=src_type,
+        permit_status=permit_status,
+        priority_score=priority_score,
+        attribution_pct=attribution_pct,
+        peak_aqi_24h=peak_aqi_24h,
+        days_since=days_since,
+    )
+    await repo.update_evidence_brief(db, item_id, brief)
+    row["evidence_brief_text"] = brief
+    return _row_to_out(row)
 
 
 async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
@@ -162,7 +283,7 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
             ).days
 
         attribution_pct = breakdown.get(f"{src['type']}_pct", 0.0)
-        brief = _build_evidence_brief(
+        brief = await _generate_evidence_brief(
             source_name=src["name"],
             source_type=src["type"],
             permit_status=src["permit_status"],

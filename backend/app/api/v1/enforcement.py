@@ -114,6 +114,24 @@ async def log_inspection(
     return ApiEnvelope(data=InspectionOut.model_validate(insp))
 
 
+@router.post(
+    "/cities/{city_id}/enforcement/{item_id}/ai-brief",
+    response_model=ApiEnvelope[EnforcementItemOut],
+)
+async def regenerate_ai_brief(
+    city_id: str,
+    item_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+    _role: dict = Depends(require_role("admin", "sysadmin")),
+):
+    """Force-regenerate the evidence brief for an item using Claude AI."""
+    item = await service.regenerate_ai_brief(db, item_id, city_id)
+    if not item:
+        raise NotFoundError(f"Enforcement item {item_id} not found")
+    return ApiEnvelope(data=item)
+
+
 @router.get(
     "/cities/{city_id}/enforcement-count",
     response_model=ApiEnvelope[dict],

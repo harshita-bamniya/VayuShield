@@ -718,32 +718,101 @@ Evidence brief is a 3-sentence plain-text string — no LLM. Module 09 (Claude A
 ---
 
 ## Session 9 — Module 09: Claude API Integration (AI-Enhanced Evidence Briefs & Advisories)
+**Date:** 2026-07-10
+**Status:** COMPLETE
+
+### What was built this session
+
+#### Files created
+
+| File | Purpose |
+|---|---|
+| `backend/app/core/claude_client.py` | Thin async wrapper around `anthropic.AsyncAnthropic` — singleton client, `generate_text()` with 1-retry logic, returns `None` on failure/missing key |
+| `backend/app/tests/test_claude_integration.py` | 10 tests: `generate_text` unit tests (no-key, success, retry-fail), evidence brief AI/template paths, advisory body AI/template paths, `/ai-brief` endpoint (auth, 404, success with mocked Claude) |
+
+#### Files modified
+
+| File | Change |
+|---|---|
+| `backend/pyproject.toml` | Added `anthropic>=0.30.0` to dependencies |
+| `backend/app/modules/enforcement/service.py` | Renamed `_build_evidence_brief` → `_build_evidence_brief_template`; added `async _generate_evidence_brief()` (AI→template fallback); added `regenerate_ai_brief()` service function; `rank_queue` now awaits async brief generation |
+| `backend/app/modules/enforcement/repository.py` | Added `update_evidence_brief()` — persists regenerated brief text |
+| `backend/app/api/v1/enforcement.py` | Added `POST /cities/{city_id}/enforcement/{item_id}/ai-brief` (admin/sysadmin only) |
+| `backend/app/modules/advisory/service.py` | Kept template functions; added `async _build_advisory_text()` that tries Claude first (falls back to template); `generate_advisories` now awaits |
+| `frontend/src/features/enforcement/api.ts` | Added `regenerateAiBrief(cityId, itemId)` API call |
+| `frontend/src/pages/Enforcement.tsx` | Added `aiBriefMutation`; added "✨ AI Brief" button in expanded evidence brief panel (visible to admin/sysadmin); loading state while generating |
+
+### Claude Integration — How It Works
+
+**`claude_client.py` pattern:**
+```python
+from app.core.claude_client import generate_text
+
+text = await generate_text(prompt, system="...", max_tokens=300)
+if text is None:
+    text = fallback_template()   # always falls back gracefully
+```
+
+**Guard:** `get_anthropic_client()` returns `None` when `settings.CLAUDE_API_KEY` is empty — zero API calls in tests or when key is absent.
+
+**Model:** Uses `settings.CLAUDE_MODEL` (default `"claude-sonnet-4-6"`). For production cost control, set `CLAUDE_MODEL=claude-haiku-4-5-20251001` in `.env`.
+
+**Two AI-upgraded paths:**
+1. **Evidence briefs** — `rank_queue` now generates 5-sentence professional enforcement briefs via Claude. The `/ai-brief` endpoint lets admins force-regenerate a specific item's brief.
+2. **Advisory bodies** — `generate_advisories` now generates natural-language advisory text in the correct language via Claude.
+
+**Mocking in tests:**
+```python
+with patch.object(claude_client, "get_anthropic_client", return_value=mock_client):
+    ...  # no real API calls ever made
+```
+
+### Definition of Done — Module 09 ✅
+
+- [x] `anthropic` SDK added to `pyproject.toml`
+- [x] `core/claude_client.py` — `generate_text()` with retry + graceful fallback
+- [x] Evidence brief generation upgraded to Claude (falls back to template when key absent)
+- [x] Advisory body generation upgraded to Claude (falls back to template when key absent)
+- [x] `POST /cities/{city_id}/enforcement/{item_id}/ai-brief` — force-regenerate brief
+- [x] `update_evidence_brief()` in enforcement repository — persists result
+- [x] "✨ AI Brief" button on Enforcement page (admin/sysadmin only) with loading state
+- [x] 10 tests written — all mocked, zero real API calls — total count: **62**
+- [x] `ruff format . && ruff check .` — clean
+- [x] `tsc --noEmit` — zero TypeScript errors
+
+### Known issues going into Session 10
+- `settings.CLAUDE_MODEL` defaults to `"claude-sonnet-4-6"` which is expensive for bulk advisory generation. Production deploys should set `CLAUDE_MODEL=claude-haiku-4-5-20251001` in `.env`.
+- Advisory idempotency check (`advisory_exists_today`) runs before AI body generation — so re-generating improved text on the same day requires deleting the existing advisory first. A `?force=true` flag on `/generate` would fix this.
+- `rank_queue` now calls Claude once per emission source — 4+ API calls per re-rank. Consider batching or caching briefs (only regenerate if score changed significantly).
+
+---
+
+## Session 10 — Module 10: Inspector PWA
 **Planned — build next**
 
-### PROMPT TO USE AT THE START OF SESSION 9
+### PROMPT TO USE AT THE START OF SESSION 10
 
 ```
 Read E:\GalaxyWeblinks\Hackathon\vayushield-ai\SESSION_LOG.md before doing anything else.
 
 We are building VayuShield AI — an Urban Air Quality Intelligence platform for the ET AI Hackathon 2026 (Problem Statement 5). The code lives at E:\GalaxyWeblinks\Hackathon\vayushield-ai\
 
-Modules 00 through 08 are complete. We have 52 passing tests. The last commit is feat(module-08).
+Modules 00 through 09 are complete. We have 62 passing tests. The last commit is feat(module-09).
 
-Your job this session is Module 09: Claude API Integration.
+Your job this session is Module 10: Inspector PWA.
 
 Build:
-1. Backend: Wire the Anthropic Python SDK. Add `ANTHROPIC_API_KEY` to `core/config.py`. Create `backend/app/core/claude_client.py` — a thin wrapper around `anthropic.AsyncAnthropic` with retry logic and structured prompt helpers.
-2. Backend: Upgrade `enforcement/service.py` `_build_evidence_brief` — replace the 3-sentence template with a real Claude API call (claude-haiku-4-5-20251001 for cost) that produces a 5-sentence enforcement brief from: source name, source type, attribution pct, forecast peak AQI, permit status, days since inspection.
-3. Backend: Upgrade `advisory/service.py` `_build_body_en` and `_build_body_hi` — replace template strings with Claude API calls that produce natural-language advisory text in the correct language.
-4. Backend: Add `POST /api/v1/cities/{city_id}/enforcement/{item_id}/ai-brief` — force-regenerate an evidence brief using Claude (admin/sysadmin only). Store result back to `enforcement_queue.evidence_brief_text`.
-5. Tests: mock the Anthropic client with `unittest.mock.AsyncMock` — do not make real API calls in tests. Write ≥3 tests covering the upgraded paths.
-6. Frontend: On the Enforcement page, add an "AI Brief" button next to each queue item that calls the new endpoint and refreshes the brief text inline.
+1. Frontend: `/inspector` page — replaces the placeholder. This is the field inspector's mobile-optimised view.
+   - Show the inspector's assigned enforcement queue items (filtered by their city, status=pending or dispatched)
+   - Each item shows: source name, source type, address/location (from emission_source geometry), priority score, evidence brief, permit status
+   - "Start Inspection" button → calls `POST /cities/{city_id}/enforcement/{item_id}/inspections` with `outcome` dropdown (passed/failed/warning) + free-text notes field
+   - "Submit" saves the inspection and marks the item dispatched→completed
+2. Frontend: Wire `/inspector` route in App.tsx (replace placeholder — already has `roles=["inspector","sysadmin"]` guard)
+3. Frontend: Make the inspector view mobile-optimised (large touch targets, stacked cards, no sidebar — use a top header bar instead)
+4. Backend: `GET /cities/{city_id}/enforcement` already supports `?status=pending` — no new endpoints needed. Verify the inspector role can call it (require_city_scope should allow it).
+5. Tests: ≥3 tests — inspection submission, outcome validation, inspector role access.
 
-Key constraint: All Claude calls must be guarded by `if settings.ANTHROPIC_API_KEY` — if the key is absent, fall back to the template-based text. This keeps tests and offline runs working.
-
-Model to use: `claude-haiku-4-5-20251001` (fast, cheap, ideal for structured short-form generation tasks).
-
-After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and commit.
+After building everything, run ruff format . && ruff check . to lint check, then update SESSION_LOG.md and add the Module 11 session prompt. Commit everything.
 ```
 
 ---

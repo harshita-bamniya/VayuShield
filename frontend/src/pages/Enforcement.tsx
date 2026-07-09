@@ -6,6 +6,7 @@ import { useCities } from "@/features/cities/useCities";
 import {
   fetchEnforcementQueue,
   rankEnforcementQueue,
+  regenerateAiBrief,
   updateEnforcementStatus,
   type EnforcementItem,
 } from "@/features/enforcement/api";
@@ -84,6 +85,13 @@ export default function Enforcement() {
     mutationFn: (itemId: string) => updateEnforcementStatus(cityId, itemId, "dispatched"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["enforcement", cityId] }),
   });
+
+  const aiBriefMutation = useMutation({
+    mutationFn: (itemId: string) => regenerateAiBrief(cityId, itemId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["enforcement", cityId] }),
+  });
+
+  const canUseAi = user?.role === "admin" || user?.role === "sysadmin";
 
   async function handleLogout() {
     await logout();
@@ -233,14 +241,34 @@ export default function Enforcement() {
                     </div>
 
                     {/* Expanded evidence brief */}
-                    {expandedId === item.id && item.evidence_brief_text && (
+                    {expandedId === item.id && (
                       <div className="px-5 pb-4 border-t border-slate-800/60">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-3 mb-2">
-                          Evidence Brief
-                        </p>
-                        <p className="text-sm text-slate-300 leading-relaxed">
-                          {item.evidence_brief_text}
-                        </p>
+                        <div className="flex items-center justify-between mt-3 mb-2">
+                          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">
+                            Evidence Brief
+                          </p>
+                          {canUseAi && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                aiBriefMutation.mutate(item.id);
+                              }}
+                              disabled={aiBriefMutation.isPending}
+                              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 disabled:opacity-50 transition-colors"
+                            >
+                              {aiBriefMutation.isPending && aiBriefMutation.variables === item.id
+                                ? "Generating…"
+                                : "✨ AI Brief"}
+                            </button>
+                          )}
+                        </div>
+                        {item.evidence_brief_text ? (
+                          <p className="text-sm text-slate-300 leading-relaxed">
+                            {item.evidence_brief_text}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-slate-500 italic">No brief generated yet.</p>
+                        )}
                         {item.source?.last_inspected_at && (
                           <p className="text-xs text-slate-500 mt-2">
                             Last inspected:{" "}
