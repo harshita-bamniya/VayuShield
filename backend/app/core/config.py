@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     SEED_ADMIN_EMAIL: str = "admin@vayushield.local"
     SEED_ADMIN_PASSWORD: str = "Admin@123"
 
-    # Claude API (used by Module 06 + 07)
-    CLAUDE_API_KEY: str = ""
-    CLAUDE_MODEL: str = "claude-sonnet-4-6"
+    # Groq API (used by Module 06 + 07 for AI evidence briefs and advisories)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     # WhatsApp (Module 07)
     WHATSAPP_PHONE_NUMBER_ID: str = ""

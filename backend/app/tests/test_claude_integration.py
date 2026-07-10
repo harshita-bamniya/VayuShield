@@ -1,10 +1,10 @@
-"""Tests for Module 09 — Claude API Integration.
+"""Tests for Module 09 — Groq API Integration.
 
-All tests mock the Anthropic client — no real API calls are made.
+All tests mock the Groq client — no real API calls are made.
 The key behaviour under test:
   - Evidence brief falls back to template when key absent / AI returns None
-  - Evidence brief uses AI text when Claude responds
-  - Advisory body uses AI text when Claude responds
+  - Evidence brief uses AI text when Groq responds
+  - Advisory body uses AI text when Groq responds
   - /ai-brief endpoint returns updated item
 """
 
@@ -20,15 +20,18 @@ DELHI_CITY_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 
 def _mock_claude_response(text: str):
-    """Return a mock that behaves like anthropic.AsyncAnthropic().messages.create()."""
-    content_block = MagicMock()
-    content_block.text = text
-
+    """Return a mock that behaves like groq.AsyncGroq().chat.completions.create()."""
     message = MagicMock()
-    message.content = [content_block]
+    message.content = text
+
+    choice = MagicMock()
+    choice.message = message
+
+    completion = MagicMock()
+    completion.choices = [choice]
 
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=message)
+    mock_client.chat.completions.create = AsyncMock(return_value=completion)
     return mock_client
 
 
@@ -37,7 +40,7 @@ def _mock_claude_response(text: str):
 
 @pytest.mark.anyio
 async def test_generate_text_returns_none_when_no_key():
-    """generate_text returns None when CLAUDE_API_KEY is empty."""
+    """generate_text returns None when GROQ_API_KEY is empty."""
     from app.core import claude_client
 
     with patch.object(claude_client, "get_anthropic_client", return_value=None):
