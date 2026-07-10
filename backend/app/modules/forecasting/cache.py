@@ -37,7 +37,9 @@ def _get_redis():
         logger.info("Forecast cache: connected to Redis", url=settings.REDIS_URL)
     except Exception as exc:
         _redis_available = False
-        logger.warning("Forecast cache: Redis unavailable, using in-memory fallback", error=str(exc))
+        logger.warning(
+            "Forecast cache: Redis unavailable, using in-memory fallback", error=str(exc)
+        )
         return None
     return _redis_client
 

@@ -20,9 +20,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.modules.ingestion.schemas import StationReadingIn
 
-CPCB_API_URL = (
-    "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
-)
+CPCB_API_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
 
 # Pollutant field names as returned by data.gov.in
 _POLLUTANT_MAP = {
@@ -85,8 +83,15 @@ async def fetch_city_readings_cpcb(city_name: str) -> dict[str, dict]:
 
         key = station_raw.lower()
         if key not in grouped:
-            grouped[key] = {"_station_raw": station_raw, "pm25": None, "pm10": None,
-                            "no2": None, "so2": None, "co": None, "o3": None}
+            grouped[key] = {
+                "_station_raw": station_raw,
+                "pm25": None,
+                "pm10": None,
+                "no2": None,
+                "so2": None,
+                "co": None,
+                "o3": None,
+            }
 
         if avg_raw and avg_raw.upper() != "NA":
             try:

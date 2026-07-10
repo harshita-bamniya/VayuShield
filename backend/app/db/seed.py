@@ -283,6 +283,7 @@ async def _seed_ingestion_data(session) -> None:
     _cpcb_anchor: dict[str, dict] = {}
     try:
         from app.modules.ingestion.connectors.caaqms import fetch_city_readings_cpcb
+
         _cpcb_anchor = await fetch_city_readings_cpcb("Delhi")
         if _cpcb_anchor:
             logger.info("Seed: got CPCB anchor data", stations=len(_cpcb_anchor))
