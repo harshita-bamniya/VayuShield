@@ -12,6 +12,7 @@ import WardDetail from "@/pages/WardDetail";
 import InspectorPage from "@/pages/InspectorPage";
 import AdminCitiesPage from "@/pages/AdminCitiesPage";
 import ReportsPage from "@/pages/ReportsPage";
+import PublicCityPage from "@/pages/PublicCityPage";
 import type { UserOut } from "@/lib/types";
 
 const queryClient = new QueryClient({
@@ -116,6 +117,7 @@ export default function App() {
               </RoleGuard>
             }
           />
+          <Route path="/city/:cityId/public" element={<PublicCityPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Placeholder name="404 — Page not found" />} />
         </Routes>

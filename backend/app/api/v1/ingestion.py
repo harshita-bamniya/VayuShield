@@ -10,6 +10,7 @@ from app.modules.ingestion import service
 from app.modules.ingestion.schemas import (
     EmissionSourceCreate,
     EmissionSourceOut,
+    FireHotspotApiOut,
     LatestReadingOut,
     WeatherReadingOut,
 )
@@ -90,6 +91,24 @@ async def trigger_weather_poll(
 ):
     inserted = await service.poll_weather(db, city_id)
     return ApiEnvelope(data={"inserted": inserted})
+
+
+# ── Fire Hotspots ─────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/cities/{city_id}/fire-hotspots",
+    response_model=ApiEnvelope[list[FireHotspotApiOut]],
+)
+async def list_fire_hotspots(
+    city_id: str,
+    hours_back: int = Query(24, ge=1, le=168),
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+):
+    """Fire hotspots detected within the last N hours for a city."""
+    hotspots = await service.get_fire_hotspots(db, city_id, hours_back)
+    return ApiEnvelope(data=hotspots)
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────

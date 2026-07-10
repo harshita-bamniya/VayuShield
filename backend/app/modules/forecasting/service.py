@@ -17,11 +17,13 @@ Algorithm:
 8. Persist 72 rows; mark previous batch stale.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.forecasting import cache as forecast_cache
 from app.modules.forecasting import repository as repo
 from app.modules.forecasting.schemas import ForecastPointOut, ForecastRunOut
 
@@ -118,6 +120,7 @@ async def run_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut:
     wind_adj = max(0.5, min(1.3, 1.0 - 0.04 * wind_speed))
 
     # 5. Generate 72 forecast points
+    forecast_cache.invalidate(city_id)
     await repo.mark_previous_stale(db, city_id)
 
     forecast_rows = []
@@ -148,7 +151,7 @@ async def run_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut:
 
     peak = max(points, key=lambda p: p.predicted_aqi)
 
-    return ForecastRunOut(
+    result = ForecastRunOut(
         city_id=city_id,
         generated_at=now,
         model_version=MODEL_VERSION,
@@ -157,16 +160,28 @@ async def run_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut:
         peak_aqi=peak.predicted_aqi,
         peak_at=peak.forecast_for_ts,
     )
+    forecast_cache.set_cached(city_id, json.loads(result.model_dump_json()))
+    return result
 
 
 async def get_latest_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut | None:
-    """Return the most recently generated forecast without recomputing."""
+    """Return the most recently generated forecast without recomputing.
+
+    Checks the 1-hour Redis/in-memory cache first; falls back to DB.
+    """
+    cached_raw = forecast_cache.get_cached(city_id)
+    if cached_raw is not None:
+        try:
+            return ForecastRunOut.model_validate(json.loads(cached_raw))
+        except Exception:
+            pass  # stale/corrupt cache — fall through to DB
+
     generated_at, objs = await repo.get_latest_forecast_run(db, city_id)
     if not objs:
         return None
     points = [ForecastPointOut.model_validate(o) for o in objs]
     peak = max(points, key=lambda p: p.predicted_aqi)
-    return ForecastRunOut(
+    result = ForecastRunOut(
         city_id=city_id,
         generated_at=generated_at,
         model_version=MODEL_VERSION,
@@ -176,3 +191,6 @@ async def get_latest_forecast(db: AsyncSession, city_id: str) -> ForecastRunOut 
         peak_at=peak.forecast_for_ts,
         is_stale=any(o.is_stale for o in objs),
     )
+    # Backfill cache from DB result
+    forecast_cache.set_cached(city_id, json.loads(result.model_dump_json()))
+    return result

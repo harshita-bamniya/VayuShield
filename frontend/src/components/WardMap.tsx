@@ -1,11 +1,14 @@
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
 import type { Layer, PathOptions } from "leaflet";
 import type { WardWithAqi } from "@/lib/types";
+import type { FireHotspot } from "@/features/cities/api";
 
 interface WardMapProps {
   wards: WardWithAqi[];
   onWardClick?: (wardId: string) => void;
+  fireHotspots?: FireHotspot[];
+  center?: [number, number];
 }
 
 function aqiFillColor(aqi: number | null): string {
@@ -27,12 +30,20 @@ function wardStyle(ward: WardWithAqi): PathOptions {
   };
 }
 
-export default function WardMap({ wards, onWardClick }: WardMapProps) {
+function hotspotColor(confidence: number): string {
+  return confidence >= 75 ? "#ef4444" : "#f97316";
+}
+
+function hotspotRadius(frp: number | null): number {
+  return frp ? Math.max(6, Math.min(20, frp / 10)) : 8;
+}
+
+export default function WardMap({ wards, onWardClick, fireHotspots = [], center = [28.62, 77.21] }: WardMapProps) {
   const wardsWithGeom = wards.filter((w) => w.geometry);
 
   return (
     <MapContainer
-      center={[28.62, 77.21]}
+      center={center}
       zoom={10}
       style={{ height: "100%", width: "100%" }}
       scrollWheelZoom={false}
@@ -57,6 +68,74 @@ export default function WardMap({ wards, onWardClick }: WardMapProps) {
           }}
         />
       ))}
+      {fireHotspots.map((h) => (
+        <CircleMarker
+          key={h.id}
+          center={[h.lat, h.lon]}
+          radius={hotspotRadius(h.frp)}
+          pathOptions={{
+            color: hotspotColor(h.confidence),
+            fillColor: hotspotColor(h.confidence),
+            fillOpacity: 0.75,
+            weight: 1.5,
+          }}
+        >
+          <Popup>
+            <div style={{ minWidth: 160 }}>
+              <strong>🔥 Fire Detected</strong>
+              <br />
+              Time: {new Date(h.detected_at).toLocaleString()}
+              <br />
+              Confidence: {h.confidence.toFixed(0)}%{" "}
+              ({h.confidence >= 75 ? "High" : "Normal"})
+              <br />
+              FRP: {h.frp != null ? `${h.frp.toFixed(1)} MW` : "N/A"}
+              <br />
+              Source: NASA FIRMS
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
+
+      {/* Legend */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 24,
+          right: 8,
+          zIndex: 1000,
+          background: "rgba(15,23,42,0.85)",
+          borderRadius: 8,
+          padding: "8px 12px",
+          fontSize: 11,
+          color: "#cbd5e1",
+          pointerEvents: "none",
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>AQI</div>
+        {[
+          ["#22c55e", "Good (≤50)"],
+          ["#a3e635", "Satisfactory (≤100)"],
+          ["#eab308", "Moderate (≤200)"],
+          ["#f97316", "Poor (≤300)"],
+          ["#ef4444", "Very Poor (≤400)"],
+          ["#a855f7", "Severe (>400)"],
+        ].map(([color, label]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+            {label}
+          </div>
+        ))}
+        <div style={{ fontWeight: 600, margin: "6px 0 4px" }}>Fire</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444", display: "inline-block", flexShrink: 0 }} />
+          High confidence (≥75%)
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f97316", display: "inline-block", flexShrink: 0 }} />
+          Normal confidence
+        </div>
+      </div>
     </MapContainer>
   );
 }

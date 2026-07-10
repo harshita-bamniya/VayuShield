@@ -26,20 +26,40 @@ from app.schemas.common import PaginationMeta
 
 
 async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
-    """Pull latest readings from all active stations in a city. Returns total inserted."""
+    """Pull latest readings from all active stations in a city. Returns total inserted.
+
+    Tries the CPCB data.gov.in API first (bulk fetch for the city); falls back to
+    mock data per-station when the API is unavailable or a station is unmatched.
+    """
+    city = await get_city_by_id(db, city_id)
     stations, _ = await get_stations_for_city(db, city_id, page=1, limit=100)
+    active = [s for s in stations if s.get("is_active")]
+    if not active:
+        return 0
+
     now = datetime.now(UTC)
+
+    # Bulk fetch from CPCB (returns {} when key not set or call fails)
+    city_name = city["name"] if city else ""
+    cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
+
     readings: list[StationReadingIn] = []
-    for station in stations:
-        if not station.get("is_active"):
-            continue
-        reading = await caaqms.fetch_station_readings(
+    for station in active:
+        reading = caaqms.match_station_reading(
+            cpcb_data,
             station_code=station["external_station_code"],
             station_id=station["id"],
             ts=now,
         )
-        if reading:
-            readings.append(reading)
+        if reading is None:
+            # Fall back to mock
+            reading = await caaqms.fetch_station_readings(
+                station_code=station["external_station_code"],
+                station_id=station["id"],
+                ts=now,
+            )
+        readings.append(reading)
+
     return await repo.bulk_insert_readings(db, readings)
 
 
@@ -75,10 +95,12 @@ async def poll_weather(db: AsyncSession, city_id: str) -> int:
     city = await get_city_by_id(db, city_id)
     if not city:
         raise NotFoundError(f"City '{city_id}' not found")
-    # Use city centroid — for now hardcoded to Delhi; Module 11 will store lat/lon in config_json
-    from app.modules.ingestion.connectors.weather import fetch_weather_for_delhi
+    from app.modules.ingestion.connectors.weather import DELHI_LAT, DELHI_LON, fetch_weather
 
-    readings = await fetch_weather_for_delhi(city_id, hours_back=2)
+    cfg = city.config_json or {}
+    lat = cfg.get("lat", DELHI_LAT)
+    lon = cfg.get("lon", DELHI_LON)
+    readings = await fetch_weather(lat, lon, city_id, hours_back=2)
     return await repo.bulk_insert_weather(db, readings)
 
 
@@ -93,11 +115,27 @@ async def get_latest_weather(db: AsyncSession, city_id: str) -> WeatherReadingOu
 # ── Fire Hotspots ─────────────────────────────────────────────────────────────
 
 
+async def get_fire_hotspots(db: AsyncSession, city_id: str, hours_back: int = 24) -> list[dict]:
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+    return await repo.get_fire_hotspots_with_coords(db, city_id, hours_back)
+
+
 async def poll_fire_hotspots(db: AsyncSession, city_id: str) -> int:
     city = await get_city_by_id(db, city_id)
     if not city:
         raise NotFoundError(f"City '{city_id}' not found")
-    hotspots = await fire_connector.fetch_fire_hotspots(city_id)
+    from app.modules.ingestion.connectors.fire_hotspots import DELHI_BBOX
+
+    cfg = city.config_json or {}
+    lat = cfg.get("lat")
+    lon = cfg.get("lon")
+    if lat is not None and lon is not None:
+        bbox = (lat - 0.5, lat + 0.5, lon - 0.5, lon + 0.5)
+    else:
+        bbox = DELHI_BBOX
+    hotspots = await fire_connector.fetch_fire_hotspots(city_id, bbox=bbox)
     inserted = 0
     for h in hotspots:
         await repo.insert_fire_hotspot(db, **h)

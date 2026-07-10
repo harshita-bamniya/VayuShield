@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { fetchCities, fetchCity } from "@/features/cities/api";
+import { fetchCities, fetchCity, fetchFireHotspots } from "@/features/cities/api";
 import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
 import { fetchPendingCount } from "@/features/enforcement/api";
@@ -92,8 +92,24 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: fireHotspots = [] } = useQuery({
+    queryKey: ["fire-hotspots", selectedCityId],
+    queryFn: () => fetchFireHotspots(selectedCityId!),
+    enabled: !!selectedCityId,
+    refetchInterval: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const displayCity = selectedCity;
   const currentAqi = forecast?.points[0]?.predicted_aqi;
+
+  // Map center: read from city config_json lat/lon, fall back to Delhi
+  const mapCenter: [number, number] = (() => {
+    const cfg = selectedCity?.config_json as Record<string, unknown> | undefined;
+    const lat = typeof cfg?.lat === "number" ? cfg.lat : null;
+    const lon = typeof cfg?.lon === "number" ? cfg.lon : null;
+    return lat && lon ? [lat, lon] : [28.62, 77.21];
+  })();
 
   const statCards = [
     {
@@ -241,7 +257,12 @@ export default function Dashboard() {
               </div>
               <div style={{ height: 290 }}>
                 {wards.length > 0 ? (
-                  <WardMap wards={wards} onWardClick={(wardId) => navigate(`/wards/${wardId}`)} />
+                  <WardMap
+                    wards={wards}
+                    onWardClick={(wardId) => navigate(`/wards/${wardId}`)}
+                    fireHotspots={fireHotspots}
+                    center={mapCenter}
+                  />
                 ) : (
                   <div className="flex items-center justify-center h-full text-slate-600 text-sm">
                     {selectedCityId ? "Loading wards…" : "Select a city"}

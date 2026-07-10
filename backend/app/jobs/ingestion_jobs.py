@@ -17,12 +17,12 @@ Usage:
 
 import asyncio
 
+from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
 from app.core.logging import logger
+from app.modules.cities.models import City
 from app.modules.ingestion.service import poll_city_stations, poll_fire_hotspots, poll_weather
-
-# The pilot city ID matches the seed constant in seed.py
-DELHI_CITY_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 
 def _run(coro):
@@ -30,37 +30,57 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def poll_all_stations_job(city_id: str = DELHI_CITY_ID) -> dict:
-    """RQ job: fetch latest readings from all CAAQMS stations for a city."""
+async def _get_all_city_ids(db) -> list[str]:
+    result = await db.execute(select(City.id))
+    return [row[0] for row in result.all()]
+
+
+def poll_all_stations_job(city_id: str | None = None) -> dict:
+    """RQ job: fetch latest readings from all CAAQMS stations.
+
+    When city_id is given, polls only that city. Otherwise polls every city in the DB.
+    """
 
     async def _inner():
         async with AsyncSessionLocal() as db:
-            inserted = await poll_city_stations(db, city_id)
-            logger.info("Station poll complete", city_id=city_id, inserted=inserted)
-            return {"city_id": city_id, "inserted": inserted}
+            ids = [city_id] if city_id else await _get_all_city_ids(db)
+            total = 0
+            for cid in ids:
+                inserted = await poll_city_stations(db, cid)
+                logger.info("Station poll complete", city_id=cid, inserted=inserted)
+                total += inserted
+            return {"city_ids": ids, "inserted": total}
 
     return _run(_inner())
 
 
-def poll_weather_job(city_id: str = DELHI_CITY_ID) -> dict:
-    """RQ job: fetch hourly weather from Open-Meteo for a city."""
+def poll_weather_job(city_id: str | None = None) -> dict:
+    """RQ job: fetch hourly weather from Open-Meteo for all cities (or one)."""
 
     async def _inner():
         async with AsyncSessionLocal() as db:
-            inserted = await poll_weather(db, city_id)
-            logger.info("Weather poll complete", city_id=city_id, inserted=inserted)
-            return {"city_id": city_id, "inserted": inserted}
+            ids = [city_id] if city_id else await _get_all_city_ids(db)
+            total = 0
+            for cid in ids:
+                inserted = await poll_weather(db, cid)
+                logger.info("Weather poll complete", city_id=cid, inserted=inserted)
+                total += inserted
+            return {"city_ids": ids, "inserted": total}
 
     return _run(_inner())
 
 
-def poll_fire_hotspots_job(city_id: str = DELHI_CITY_ID) -> dict:
-    """RQ job: fetch NASA FIRMS fire detections within city bounding box."""
+def poll_fire_hotspots_job(city_id: str | None = None) -> dict:
+    """RQ job: fetch NASA FIRMS fire detections for all cities (or one)."""
 
     async def _inner():
         async with AsyncSessionLocal() as db:
-            inserted = await poll_fire_hotspots(db, city_id)
-            logger.info("Fire hotspot poll complete", city_id=city_id, inserted=inserted)
-            return {"city_id": city_id, "inserted": inserted}
+            ids = [city_id] if city_id else await _get_all_city_ids(db)
+            total = 0
+            for cid in ids:
+                inserted = await poll_fire_hotspots(db, cid)
+                logger.info("Fire hotspot poll complete", city_id=cid, inserted=inserted)
+                total += inserted
+            return {"city_ids": ids, "inserted": total}
 
     return _run(_inner())

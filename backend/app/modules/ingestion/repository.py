@@ -191,6 +191,29 @@ async def insert_fire_hotspot(
     return {"id": hotspot_id}
 
 
+async def get_fire_hotspots_with_coords(
+    db: AsyncSession, city_id: str, hours_back: int = 24
+) -> list[dict]:
+    """Return fire hotspots as flat dicts with lat/lon extracted from PostGIS geometry."""
+    rows = await db.execute(
+        text(
+            """
+            SELECT id, detected_at,
+                   ST_Y(geometry::geometry) AS lat,
+                   ST_X(geometry::geometry) AS lon,
+                   confidence, frp, source
+            FROM fire_hotspots
+            WHERE city_id = :city_id
+              AND detected_at > NOW() - INTERVAL '1 hour' * :hours_back
+            ORDER BY detected_at DESC
+            LIMIT 200
+            """
+        ),
+        {"city_id": city_id, "hours_back": hours_back},
+    )
+    return [dict(r._mapping) for r in rows]
+
+
 async def get_fire_hotspots(
     db: AsyncSession, city_id: str, since: datetime | None = None
 ) -> list[dict]:

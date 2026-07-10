@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.advisory import router as advisory_router
+from app.api.v1.public import router as public_router
 from app.api.v1.attribution import router as attribution_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cities import router as cities_router
@@ -20,11 +21,39 @@ from app.core.logging import configure_logging, logger
 from app.db.seed import seed_admin
 
 
+async def _startup_poll() -> None:
+    """Trigger one ingestion cycle for every city so the dashboard is never empty."""
+    try:
+        from sqlalchemy import select
+
+        from app.core.database import AsyncSessionLocal
+        from app.modules.cities.models import City
+        from app.modules.ingestion.service import (
+            poll_city_stations,
+            poll_fire_hotspots,
+            poll_weather,
+        )
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(City.id))
+            city_ids = [row[0] for row in result.all()]
+
+        for city_id in city_ids:
+            async with AsyncSessionLocal() as db:
+                await poll_city_stations(db, city_id)
+                await poll_weather(db, city_id)
+                await poll_fire_hotspots(db, city_id)
+            logger.info("Startup poll complete", city_id=city_id)
+    except Exception as exc:
+        logger.warning("Startup poll failed (non-fatal)", error=str(exc))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("VayuShield AI starting", environment=settings.ENVIRONMENT)
     await seed_admin()
+    await _startup_poll()
     yield
     logger.info("VayuShield AI shutting down")
 
@@ -77,3 +106,4 @@ app.include_router(forecasting_router, prefix="/api/v1")
 app.include_router(enforcement_router, prefix="/api/v1")
 app.include_router(advisory_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
+app.include_router(public_router, prefix="/api/v1")

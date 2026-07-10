@@ -95,6 +95,18 @@ class FireHotspotOut(BaseModel):
         return v
 
 
+class FireHotspotApiOut(BaseModel):
+    """Flat lat/lon representation returned by the public API endpoint."""
+
+    id: str
+    detected_at: datetime
+    lat: float
+    lon: float
+    confidence: float
+    frp: float | None
+    source: str
+
+
 # ── Emission Sources ──────────────────────────────────────────────────────────
 
 

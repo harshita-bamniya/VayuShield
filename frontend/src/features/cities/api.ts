@@ -37,6 +37,25 @@ export async function fetchStations(cityId: string): Promise<StationOut[]> {
   return resp.data.data ?? [];
 }
 
+// ── Fire Hotspots ─────────────────────────────────────────────────────────────
+
+export interface FireHotspot {
+  id: string;
+  detected_at: string;
+  lat: number;
+  lon: number;
+  confidence: number;
+  frp: number | null;
+  source: string;
+}
+
+export async function fetchFireHotspots(cityId: string, hoursBack = 24): Promise<FireHotspot[]> {
+  const resp = await client.get<{ data: FireHotspot[] }>(
+    `/cities/${cityId}/fire-hotspots?hours_back=${hoursBack}`
+  );
+  return resp.data.data ?? [];
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 export interface CreateCityPayload {

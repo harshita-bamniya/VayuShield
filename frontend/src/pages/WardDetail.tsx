@@ -177,26 +177,36 @@ export default function WardDetail() {
                     <tr className="text-slate-400 text-xs border-b border-slate-700">
                       <th className="text-left pb-2">Station</th>
                       <th className="text-right pb-2">AQI</th>
-                      <th className="text-right pb-2">PM2.5</th>
-                      <th className="text-right pb-2">PM10</th>
+                      <th className="text-right pb-2">PM2.5 µg/m³</th>
+                      <th className="text-right pb-2">PM10 µg/m³</th>
                       <th className="text-left pb-2 pl-2">Category</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ward.station_readings.map((r) => (
                       <tr key={r.station_id} className="border-b border-slate-700/50">
-                        <td className="py-2 text-slate-300">{r.station_name ?? r.station_id}</td>
+                        <td className="py-2 text-slate-300">
+                          {r.station_name ?? r.station_id}
+                          {r.is_stale && (
+                            <span
+                              className="ml-1.5 text-xs text-amber-500"
+                              title="Sensor offline — no recent data"
+                            >
+                              ⚠ offline
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 text-right font-mono font-bold">
-                          {r.aqi ?? "—"}
+                          {r.is_stale ? <span title="Sensor offline" className="text-slate-600">—</span> : (r.aqi ?? "—")}
                         </td>
                         <td className="py-2 text-right font-mono text-slate-300">
-                          {r.pm25 != null ? r.pm25.toFixed(1) : "—"}
+                          {r.is_stale ? <span title="Sensor offline" className="text-slate-600">—</span> : (r.pm25 != null ? r.pm25.toFixed(1) : "—")}
                         </td>
                         <td className="py-2 text-right font-mono text-slate-300">
-                          {r.pm10 != null ? r.pm10.toFixed(1) : "—"}
+                          {r.is_stale ? <span title="Sensor offline" className="text-slate-600">—</span> : (r.pm10 != null ? r.pm10.toFixed(1) : "—")}
                         </td>
                         <td className="py-2 pl-2 text-slate-400 text-xs">
-                          {r.aqi_category ?? "—"}
+                          {r.is_stale ? <span title="Sensor offline" className="text-slate-600">—</span> : (r.aqi_category ?? "—")}
                         </td>
                       </tr>
                     ))}

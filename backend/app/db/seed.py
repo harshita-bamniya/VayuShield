@@ -279,13 +279,42 @@ async def _seed_ingestion_data(session) -> None:
     now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     start = now - timedelta(days=7)
 
-    def make_reading(station_id: str, ts: datetime) -> dict:
+    # Try to fetch one real CPCB snapshot for Delhi to anchor the mock readings
+    _cpcb_anchor: dict[str, dict] = {}
+    try:
+        from app.modules.ingestion.connectors.caaqms import fetch_city_readings_cpcb
+        _cpcb_anchor = await fetch_city_readings_cpcb("Delhi")
+        if _cpcb_anchor:
+            logger.info("Seed: got CPCB anchor data", stations=len(_cpcb_anchor))
+    except Exception as _exc:
+        logger.warning("Seed: CPCB anchor fetch failed (using mock)", error=str(_exc))
+
+    # Map stable station IDs to their CPCB keys for anchor lookup
+    _STATION_CPCB_KEYS = {
+        STATION_AV_ID: "anand vihar",
+        STATION_ITO_ID: "ito",
+    }
+
+    def _real_pm25(station_id: str) -> float | None:
+        """Return live PM2.5 from CPCB anchor, or None to fall back to mock."""
+        key = _STATION_CPCB_KEYS.get(station_id, "")
+        for cpcb_key, vals in _cpcb_anchor.items():
+            if key and key in cpcb_key:
+                return vals.get("pm25")
+        return None
+
+    def make_reading(station_id: str, ts: datetime, is_latest: bool = False) -> dict:
         hour = ts.hour
         diurnal = 1.0 + 0.4 * (
             math.exp(-0.5 * ((hour - 8) / 2) ** 2) + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
         )
         base_pm25 = 120.0 * diurnal
-        pm25 = round(max(5.0, base_pm25 * random.uniform(0.85, 1.15)), 2)
+        # Anchor the most-recent hour to live CPCB value if available
+        real = _real_pm25(station_id) if is_latest else None
+        if real is not None and real > 0:
+            pm25 = round(real * random.uniform(0.97, 1.03), 2)
+        else:
+            pm25 = round(max(5.0, base_pm25 * random.uniform(0.85, 1.15)), 2)
         pm10 = round(pm25 * random.uniform(1.5, 2.2), 2)
         no2 = round(random.uniform(20, 90), 2)
         so2 = round(random.uniform(5, 30), 2)
@@ -322,8 +351,9 @@ async def _seed_ingestion_data(session) -> None:
     batch = []
     current = start
     while current <= now:
+        is_latest = current == now
         for sid in station_ids:
-            batch.append(make_reading(sid, current))
+            batch.append(make_reading(sid, current, is_latest=is_latest))
         current += timedelta(hours=1)
         # Flush every 200 rows to avoid huge transactions
         if len(batch) >= 200:

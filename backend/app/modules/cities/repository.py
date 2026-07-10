@@ -104,10 +104,42 @@ async def get_wards_for_city_with_aqi(
         text(
             """
             WITH latest_readings AS (
-                SELECT DISTINCT ON (station_id)
-                    station_id, aqi
-                FROM station_readings
-                ORDER BY station_id, ts DESC
+                SELECT DISTINCT ON (sr.station_id)
+                    sr.station_id,
+                    sr.aqi,
+                    ST_X(s.geometry) AS lon,
+                    ST_Y(s.geometry) AS lat
+                FROM station_readings sr
+                JOIN stations s ON s.id = sr.station_id
+                WHERE s.city_id = :city_id AND s.is_active = true AND sr.aqi IS NOT NULL
+                ORDER BY sr.station_id, sr.ts DESC
+            ),
+            ward_centroids AS (
+                SELECT
+                    w.id AS ward_id,
+                    ST_X(ST_Centroid(w.geometry)) AS cx,
+                    ST_Y(ST_Centroid(w.geometry)) AS cy
+                FROM wards w
+                WHERE w.city_id = :city_id AND w.geometry IS NOT NULL
+            ),
+            idw AS (
+                SELECT
+                    wc.ward_id,
+                    SUM(lr.aqi / NULLIF(POWER(
+                        GREATEST(ST_Distance(
+                            ST_SetSRID(ST_MakePoint(wc.cx, wc.cy), 4326)::geography,
+                            ST_SetSRID(ST_MakePoint(lr.lon, lr.lat), 4326)::geography
+                        ) / 1000.0, 0.1), 2
+                    ), 0)) /
+                    SUM(1.0 / NULLIF(POWER(
+                        GREATEST(ST_Distance(
+                            ST_SetSRID(ST_MakePoint(wc.cx, wc.cy), 4326)::geography,
+                            ST_SetSRID(ST_MakePoint(lr.lon, lr.lat), 4326)::geography
+                        ) / 1000.0, 0.1), 2
+                    ), 0)) AS idw_aqi
+                FROM ward_centroids wc
+                CROSS JOIN latest_readings lr
+                GROUP BY wc.ward_id
             )
             SELECT
                 w.id,
@@ -117,13 +149,21 @@ async def get_wards_for_city_with_aqi(
                 w.vulnerable_site_flags,
                 w.created_at,
                 ST_AsGeoJSON(w.geometry) AS geometry,
-                AVG(lr.aqi)::int AS avg_aqi
+                ROUND(COALESCE(idw.idw_aqi, direct.avg_aqi))::int AS avg_aqi
             FROM wards w
-            LEFT JOIN stations s ON s.ward_id = w.id AND s.is_active = true
-            LEFT JOIN latest_readings lr ON lr.station_id = s.id
+            LEFT JOIN idw ON idw.ward_id = w.id
+            LEFT JOIN (
+                SELECT s.ward_id, AVG(lr2.aqi)::int AS avg_aqi
+                FROM (
+                    SELECT DISTINCT ON (station_id) station_id, aqi
+                    FROM station_readings
+                    ORDER BY station_id, ts DESC
+                ) lr2
+                JOIN stations s ON s.id = lr2.station_id AND s.is_active = true
+                WHERE s.city_id = :city_id
+                GROUP BY s.ward_id
+            ) direct ON direct.ward_id = w.id
             WHERE w.city_id = :city_id
-            GROUP BY w.id, w.city_id, w.name, w.population,
-                     w.vulnerable_site_flags, w.created_at, w.geometry
             ORDER BY w.name
             LIMIT :limit OFFSET :offset
             """
