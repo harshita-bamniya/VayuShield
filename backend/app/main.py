@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -53,7 +54,7 @@ async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("VayuShield AI starting", environment=settings.ENVIRONMENT)
     await seed_admin()
-    await _startup_poll()
+    asyncio.create_task(_startup_poll())
     yield
     logger.info("VayuShield AI shutting down")
 
