@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { fetchCities, fetchCity, fetchFireHotspots } from "@/features/cities/api";
+import { fetchCities, fetchCity, fetchFireHotspots, type CityWithCounts } from "@/features/cities/api";
 import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
 import { fetchPendingCount } from "@/features/enforcement/api";
@@ -105,7 +105,7 @@ export default function Dashboard() {
 
   // Map center: read from city config_json lat/lon, fall back to Delhi
   const mapCenter: [number, number] = (() => {
-    const cfg = selectedCity?.config_json as Record<string, unknown> | undefined;
+    const cfg = (selectedCity as CityWithCounts | undefined)?.config_json as Record<string, unknown> | undefined;
     const lat = typeof cfg?.lat === "number" ? cfg.lat : null;
     const lon = typeof cfg?.lon === "number" ? cfg.lon : null;
     return lat && lon ? [lat, lon] : [28.62, 77.21];

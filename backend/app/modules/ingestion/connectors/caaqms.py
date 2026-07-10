@@ -12,7 +12,7 @@ Returns one row per pollutant per station; we group by station name.
 
 import math
 import random
-from datetime import UTC, datetime
+from datetime import datetime
 
 import httpx
 
