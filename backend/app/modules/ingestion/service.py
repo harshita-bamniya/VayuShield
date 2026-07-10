@@ -40,7 +40,7 @@ async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     now = datetime.now(UTC)
 
     # Bulk fetch from CPCB (returns {} when key not set or call fails)
-    city_name = city["name"] if city else ""
+    city_name = city.name if city else ""
     cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
 
     readings: list[StationReadingIn] = []

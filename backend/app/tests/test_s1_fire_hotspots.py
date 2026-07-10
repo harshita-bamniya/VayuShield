@@ -62,14 +62,12 @@ async def test_fire_hotspots_hours_back_param(client: AsyncClient, sysadmin_toke
 
 
 @pytest.mark.asyncio
-async def test_fire_hotspots_unknown_city_returns_empty(
+async def test_fire_hotspots_unknown_city_returns_404(
     client: AsyncClient, sysadmin_token: str
 ) -> None:
-    """Unknown city returns empty list (no hotspots match), not 500."""
+    """Unknown city_id returns 404 from the city scope check."""
     resp = await client.get(
         f"/api/v1/cities/{NONEXISTENT_ID}/fire-hotspots",
         headers={"Authorization": f"Bearer {sysadmin_token}"},
     )
-    # sysadmin bypasses city scope; unknown city just returns []
-    assert resp.status_code == 200
-    assert resp.json()["data"] == []
+    assert resp.status_code == 404
