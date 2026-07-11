@@ -24,5 +24,8 @@ class Forecast(Base):
     model_version: Mapped[str] = mapped_column(
         String(50), nullable=False, server_default="diurnal-v1"
     )
+    ward_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("wards.id", ondelete="CASCADE"), nullable=True
+    )
     is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

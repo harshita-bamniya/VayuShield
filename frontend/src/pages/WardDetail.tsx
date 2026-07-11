@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { fetchWardDetail } from "@/features/wards/api";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
+import { fetchWardDetail, fetchWardForecast } from "@/features/wards/api";
 import { useCities } from "@/features/cities/useCities";
 
 const PIE_COLORS: Record<string, string> = {
@@ -41,6 +41,13 @@ export default function WardDetail() {
     queryKey: ["ward-detail", selectedCityId, wardId],
     queryFn: () => fetchWardDetail(selectedCityId!, wardId!),
     enabled: !!selectedCityId && !!wardId,
+  });
+
+  const { data: wardForecast } = useQuery({
+    queryKey: ["ward-forecast", selectedCityId, wardId],
+    queryFn: () => fetchWardForecast(selectedCityId!, wardId!),
+    enabled: !!selectedCityId && !!wardId,
+    staleTime: 1000 * 60 * 15,
   });
 
   if (!selectedCityId) {
@@ -219,6 +226,68 @@ export default function WardDetail() {
               </p>
             )}
           </div>
+        </div>
+
+        {/* 72h Hyperlocal Forecast */}
+        <div className="bg-slate-800 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-slate-200">72h Hyperlocal AQI Forecast</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                ward-hyperlocal-v1 · Open-Meteo forward wind · emission-source proximity
+              </p>
+            </div>
+            {wardForecast && (
+              <div className="text-right">
+                <p className="text-xs text-slate-500">Peak forecast</p>
+                <span className={`text-lg font-bold ${aqiBadgeClass(wardForecast.peak_aqi)} px-2 py-0.5 rounded text-white`}>
+                  {wardForecast.peak_aqi}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {wardForecast && wardForecast.points.length > 0 ? (() => {
+            // Sample every 2h for readability (36 points from 72)
+            const chartData = wardForecast.points
+              .filter((_, i) => i % 2 === 0)
+              .map((p) => ({
+                label: new Date(p.forecast_for_ts).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", hour12: false }),
+                aqi: p.predicted_aqi,
+                pm25: p.predicted_pm25 != null ? Math.round(p.predicted_pm25 * 10) / 10 : null,
+                conf: p.confidence != null ? Math.round(p.confidence * 100) : null,
+              }));
+
+            const maxAqi = Math.max(...chartData.map((d) => d.aqi));
+            const fillColor = maxAqi > 300 ? "#ef4444" : maxAqi > 200 ? "#f97316" : maxAqi > 100 ? "#eab308" : "#22c55e";
+
+            return (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="wardAqiGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={fillColor} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={fillColor} stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 10 }} interval={5} />
+                  <YAxis domain={[0, 500]} tick={{ fill: "#94a3b8", fontSize: 10 }} width={36} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                    labelStyle={{ color: "#cbd5e1", fontSize: 11 }}
+                    formatter={(val: number, name: string) => [
+                      name === "aqi" ? `${val} AQI` : `${val} µg/m³`,
+                      name === "aqi" ? "AQI" : "PM2.5",
+                    ]}
+                  />
+                  <Area type="monotone" dataKey="aqi" stroke={fillColor} fill="url(#wardAqiGrad)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            );
+          })() : (
+            <p className="text-slate-500 text-sm py-8 text-center">Loading forecast…</p>
+          )}
         </div>
       </div>
     </div>

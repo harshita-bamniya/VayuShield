@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ForecastPointOut(BaseModel):
     id: str
     city_id: str
+    ward_id: str | None = None
     generated_at: datetime
     forecast_for_ts: datetime
     predicted_aqi: int
@@ -19,6 +20,7 @@ class ForecastPointOut(BaseModel):
 
 class ForecastRunOut(BaseModel):
     city_id: str
+    ward_id: str | None = None
     generated_at: datetime
     model_version: str
     horizon_hours: int
