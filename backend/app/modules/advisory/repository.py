@@ -12,6 +12,7 @@ async def list_advisories(
     channel: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    ward_id: str | None = None,
 ) -> tuple[list[dict], int]:
     filters = "WHERE city_id = :city_id"
     params: dict = {"city_id": city_id, "limit": limit, "offset": offset}
@@ -21,6 +22,9 @@ async def list_advisories(
     if channel:
         filters += " AND channel = :channel"
         params["channel"] = channel
+    if ward_id is not None:
+        filters += " AND ward_id = :ward_id"
+        params["ward_id"] = ward_id
 
     count_row = await db.execute(text(f"SELECT COUNT(*) FROM advisories {filters}"), params)
     total = count_row.scalar() or 0
@@ -58,21 +62,26 @@ async def get_advisory(db: AsyncSession, advisory_id: str, city_id: str) -> dict
 
 
 async def advisory_exists_today(
-    db: AsyncSession, city_id: str, aqi_level: str, language: str
+    db: AsyncSession, city_id: str, aqi_level: str, language: str, ward_id: str | None = None
 ) -> bool:
-    """Check if an advisory for this city/aqi_level/language was already created today."""
+    """Check if an advisory for this city/ward/aqi_level/language was already created today."""
+    extra = " AND ward_id = :ward_id" if ward_id else " AND ward_id IS NULL"
+    params: dict = {"city_id": city_id, "aqi_level": aqi_level, "language": language}
+    if ward_id:
+        params["ward_id"] = ward_id
     row = await db.execute(
         text(
-            """
+            f"""
             SELECT id FROM advisories
             WHERE city_id = :city_id
               AND aqi_level = :aqi_level
               AND language = :language
               AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
+              {extra}
             LIMIT 1
             """
         ),
-        {"city_id": city_id, "aqi_level": aqi_level, "language": language},
+        params,
     )
     return row.fetchone() is not None
 

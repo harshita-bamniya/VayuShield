@@ -43,3 +43,32 @@ export async function fetchAdvisoryCount(cityId: string): Promise<number> {
   );
   return resp.data.data.total;
 }
+
+export interface IvrAdvisory {
+  ivr_text: string;
+  language: string;
+  aqi_level?: string;
+  advisory_id?: string;
+}
+
+export async function fetchIvrAdvisory(
+  cityId: string,
+  language: string = "en",
+  wardId?: string
+): Promise<IvrAdvisory> {
+  const resp = await client.get<{ data: IvrAdvisory }>(
+    `/cities/${cityId}/advisories/ivr`,
+    { params: { language, ...(wardId ? { ward_id: wardId } : {}) } }
+  );
+  return resp.data.data;
+}
+
+export async function generateWardAdvisories(
+  cityId: string,
+  wardId: string
+): Promise<AdvisoryGenerateResponse> {
+  const resp = await client.post<{ data: AdvisoryGenerateResponse }>(
+    `/cities/${cityId}/wards/${wardId}/advisories/generate`
+  );
+  return resp.data.data;
+}

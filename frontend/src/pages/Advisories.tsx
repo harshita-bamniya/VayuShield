@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { fetchAdvisories, generateAdvisories } from "@/features/advisory/api";
+import { fetchAdvisories, fetchIvrAdvisory, generateAdvisories } from "@/features/advisory/api";
 import type { Advisory } from "@/lib/types";
 
 const NAV_ITEMS = [
@@ -110,6 +110,8 @@ export default function Advisories() {
   const queryClient = useQueryClient();
 
   const [langFilter, setLangFilter] = useState<string>("");
+  const [ivrLang, setIvrLang] = useState<string>("en");
+  const [showIvr, setShowIvr] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisories", selectedCityId, langFilter],
@@ -119,6 +121,13 @@ export default function Advisories() {
         limit: 50,
       }),
     enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: ivrData, isLoading: ivrLoading } = useQuery({
+    queryKey: ["ivr-advisory", selectedCityId, ivrLang],
+    queryFn: () => fetchIvrAdvisory(selectedCityId!, ivrLang),
+    enabled: !!selectedCityId && showIvr,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -206,6 +215,13 @@ export default function Advisories() {
               ))}
             </select>
 
+            <button
+              onClick={() => setShowIvr((v) => !v)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${showIvr ? "bg-green-600/20 border-green-500/40 text-green-300" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:border-slate-500"}`}
+            >
+              📞 IVR Preview
+            </button>
+
             {canGenerate && (
               <button
                 onClick={() => generateMutation.mutate()}
@@ -217,6 +233,51 @@ export default function Advisories() {
             )}
           </div>
         </header>
+
+        {/* IVR Preview Panel */}
+        {showIvr && (
+          <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
+            <div className="max-w-2xl">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📞</span>
+                  <span className="text-sm font-semibold text-white">IVR Preview</span>
+                  <span className="text-xs text-slate-500">Text-to-speech script for phone alerts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={ivrLang}
+                    onChange={(e) => setIvrLang(e.target.value)}
+                    className="bg-slate-700 border border-slate-600 text-slate-300 text-xs rounded px-2 py-1"
+                  >
+                    {Object.entries(LANGUAGE_LABELS).filter(([k]) => ["en","hi","kn","ta"].includes(k)).map(([code, label]) => (
+                      <option key={code} value={code}>{label}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => setShowIvr(false)} className="text-slate-500 hover:text-slate-300 text-xs">✕ Close</button>
+                </div>
+              </div>
+              <div className="bg-slate-900 rounded-lg border border-slate-700 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-xs text-slate-500 font-mono">CALL IN PROGRESS — {LANGUAGE_LABELS[ivrLang] ?? ivrLang.toUpperCase()}</span>
+                </div>
+                {ivrLoading ? (
+                  <p className="text-slate-500 text-sm italic">Loading IVR script…</p>
+                ) : ivrData ? (
+                  <p className="text-slate-200 text-sm leading-relaxed font-mono">{ivrData.ivr_text}</p>
+                ) : (
+                  <p className="text-slate-500 text-sm italic">No advisory available — generate one first.</p>
+                )}
+                {ivrData?.aqi_level && (
+                  <div className="mt-2 pt-2 border-t border-slate-800 text-xs text-slate-600">
+                    AQI level: {ivrData.aqi_level} · Advisory ID: {ivrData.advisory_id?.slice(0, 8)}…
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-auto p-6">
