@@ -36,8 +36,8 @@ async def test_generate_advisories_creates_per_language(client: AsyncClient, sys
     assert "generated" in data
     assert "skipped" in data
     assert "advisories" in data
-    # generated + skipped = number of languages we support
-    assert data["generated"] + data["skipped"] == 2  # en + hi
+    # generated + skipped = number of languages we support (en, hi, kn, ta)
+    assert data["generated"] + data["skipped"] == 4
 
 
 @pytest.mark.anyio
