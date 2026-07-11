@@ -70,8 +70,12 @@ def _spatial_proximity_score(
 
     dlat = math.radians(ward_lat - src_lat)
     dlon = math.radians(ward_lon - src_lon)
-    a = (math.sin(dlat / 2) ** 2
-         + math.cos(math.radians(src_lat)) * math.cos(math.radians(ward_lat)) * math.sin(dlon / 2) ** 2)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(src_lat))
+        * math.cos(math.radians(ward_lat))
+        * math.sin(dlon / 2) ** 2
+    )
     dist_km = 6371 * 2 * math.asin(math.sqrt(max(0.0, a)))
 
     if dist_km > max_km:
@@ -354,11 +358,16 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
 
     # 4b. Current wind direction for the city
     wind_result = await db.execute(
-        text("SELECT wind_dir FROM weather_readings WHERE city_id = :city_id ORDER BY ts DESC LIMIT 1"),
+        text(
+            "SELECT wind_dir FROM weather_readings"
+            " WHERE city_id = :city_id ORDER BY ts DESC LIMIT 1"
+        ),
         {"city_id": city_id},
     )
     wind_row = wind_result.fetchone()
-    current_wind_dir: float | None = float(wind_row[0]) if wind_row and wind_row[0] is not None else None
+    current_wind_dir: float | None = (
+        float(wind_row[0]) if wind_row and wind_row[0] is not None else None
+    )
 
     # 5. Score each source and upsert
     scored: list[dict] = []
@@ -366,8 +375,10 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
         # Blend: 60% category attribution + 40% spatial proximity to worst ward
         category_w = _attribution_weight(src["type"], breakdown)
         spatial_w = _spatial_proximity_score(
-            src.get("src_lat"), src.get("src_lon"),
-            worst_lat, worst_lon,
+            src.get("src_lat"),
+            src.get("src_lon"),
+            worst_lat,
+            worst_lon,
             current_wind_dir,
         )
         attr_w = 0.60 * category_w + 0.40 * spatial_w
@@ -398,8 +409,12 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
         if src_lat and src_lon and worst_lat and worst_lon:
             dlat = math.radians(worst_lat - src_lat)
             dlon = math.radians(worst_lon - src_lon)
-            a = (math.sin(dlat / 2) ** 2
-                 + math.cos(math.radians(src_lat)) * math.cos(math.radians(worst_lat)) * math.sin(dlon / 2) ** 2)
+            a = (
+                math.sin(dlat / 2) ** 2
+                + math.cos(math.radians(src_lat))
+                * math.cos(math.radians(worst_lat))
+                * math.sin(dlon / 2) ** 2
+            )
             dist_km = round(6371 * 2 * math.asin(math.sqrt(max(0.0, a))), 1)
 
         brief = await _generate_evidence_brief(

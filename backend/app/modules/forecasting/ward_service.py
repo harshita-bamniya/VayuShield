@@ -21,7 +21,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.forecasting import repository as repo
-from app.modules.forecasting.models import Forecast
 from app.modules.forecasting.schemas import ForecastPointOut, ForecastRunOut
 from app.modules.forecasting.service import _aqi_to_pm25, _linear_slope
 
@@ -102,7 +101,12 @@ def _source_proximity_offset(
         # Haversine distance in km
         dlat = math.radians(src_lat - ward_lat)
         dlon = math.radians(src_lon - ward_lon)
-        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(ward_lat)) * math.cos(math.radians(src_lat)) * math.sin(dlon / 2) ** 2
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(math.radians(ward_lat))
+            * math.cos(math.radians(src_lat))
+            * math.sin(dlon / 2) ** 2
+        )
         dist_km = 6371 * 2 * math.asin(math.sqrt(a))
 
         if dist_km > 8:
@@ -122,7 +126,12 @@ def _source_proximity_offset(
             wind_factor = max(0.0, 1.0 - diff / 90.0)
 
         # Source intensity weight
-        intensity = {"industrial": 3.0, "vehicular": 1.5, "agricultural": 2.0, "construction": 1.0}.get(src_type, 1.0)
+        intensity = {
+            "industrial": 3.0,
+            "vehicular": 1.5,
+            "agricultural": 2.0,
+            "construction": 1.0,
+        }.get(src_type, 1.0)
         total_weight += intensity * dist_factor * wind_factor
 
     # Normalise: cap at 15 AQI offset
@@ -173,7 +182,8 @@ async def run_ward_forecast(db: AsyncSession, city_id: str, ward_id: str) -> For
             SELECT DATE_TRUNC('hour', sr.ts) AS hour_bucket, ROUND(AVG(sr.aqi))::int AS avg_aqi
             FROM station_readings sr
             JOIN stations s ON s.id = sr.station_id
-            WHERE s.ward_id = :ward_id AND s.is_active = true AND sr.aqi IS NOT NULL AND sr.ts >= :since
+            WHERE s.ward_id = :ward_id AND s.is_active = true
+              AND sr.aqi IS NOT NULL AND sr.ts >= :since
             GROUP BY hour_bucket ORDER BY hour_bucket
         """),
         {"ward_id": ward_id, "since": now - timedelta(days=7)},
@@ -219,8 +229,12 @@ async def run_ward_forecast(db: AsyncSession, city_id: str, ward_id: str) -> For
 
         # Per-hour wind from Open-Meteo (fallback: use last available)
         om_entry = om_lookup.get(ts_key)
-        hour_wind_speed = om_entry["wind_speed"] if om_entry and om_entry.get("wind_speed") is not None else 3.0
-        hour_wind_dir = om_entry["wind_dir"] if om_entry and om_entry.get("wind_dir") is not None else None
+        hour_wind_speed = (
+            om_entry["wind_speed"] if om_entry and om_entry.get("wind_speed") is not None else 3.0
+        )
+        hour_wind_dir = (
+            om_entry["wind_dir"] if om_entry and om_entry.get("wind_dir") is not None else None
+        )
 
         wa = _wind_adj(hour_wind_speed)
         src_offset = _source_proximity_offset(
@@ -237,17 +251,19 @@ async def run_ward_forecast(db: AsyncSession, city_id: str, ward_id: str) -> For
         predicted_pm25 = _aqi_to_pm25(predicted_aqi)
         confidence = round(max(0.40, 0.92 - 0.007 * (h - 1)), 3)
 
-        forecast_rows.append({
-            "city_id": city_id,
-            "ward_id": ward_id,
-            "generated_at": now,
-            "forecast_for_ts": ts,
-            "predicted_aqi": predicted_aqi,
-            "predicted_pm25": predicted_pm25,
-            "confidence": confidence,
-            "model_version": MODEL_VERSION,
-            "is_stale": False,
-        })
+        forecast_rows.append(
+            {
+                "city_id": city_id,
+                "ward_id": ward_id,
+                "generated_at": now,
+                "forecast_for_ts": ts,
+                "predicted_aqi": predicted_aqi,
+                "predicted_pm25": predicted_pm25,
+                "confidence": confidence,
+                "model_version": MODEL_VERSION,
+                "is_stale": False,
+            }
+        )
 
     objs = await repo.bulk_insert_forecast(db, forecast_rows)
     points = [ForecastPointOut.model_validate(o) for o in objs]
@@ -265,7 +281,9 @@ async def run_ward_forecast(db: AsyncSession, city_id: str, ward_id: str) -> For
     )
 
 
-async def get_latest_ward_forecast(db: AsyncSession, city_id: str, ward_id: str) -> ForecastRunOut | None:
+async def get_latest_ward_forecast(
+    db: AsyncSession, city_id: str, ward_id: str
+) -> ForecastRunOut | None:
     generated_at, objs = await repo.get_latest_forecast_run(db, city_id, ward_id=ward_id)
     if not objs:
         return None

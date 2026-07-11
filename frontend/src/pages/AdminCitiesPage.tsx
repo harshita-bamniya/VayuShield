@@ -746,13 +746,11 @@ function AddStationForm({ cityId, cityName, wards, defaultWardId, existingStatio
       .map((s) => s.external_station_code)
   );
   const presetStations = allPresets.filter((s) => !takenCodes.has(s.code));
-  const autoPreset = undefined;
-
-  const [selectedPreset, setSelectedPreset] = useState(autoPreset?.code ?? "");
-  const [name, setName] = useState(autoPreset?.name ?? "");
-  const [code, setCode] = useState(autoPreset?.code ?? "");
-  const [lat, setLat] = useState(autoPreset ? String(autoPreset.lat) : "");
-  const [lng, setLng] = useState(autoPreset ? String(autoPreset.lon) : "");
+  const [selectedPreset, setSelectedPreset] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [wardId, setWardId] = useState(defaultWardId ?? "");
 
   function handlePresetChange(val: string) {
@@ -903,67 +901,6 @@ function AddStationForm({ cityId, cityName, wards, defaultWardId, existingStatio
         {mutation.isPending ? "Adding…" : "Add Station"}
       </button>
     </form>
-  );
-}
-
-// ── Ward Row (with delete) ────────────────────────────────────────────────────
-
-function WardRow({
-  ward, cityId, selected, onSelect, onDeleted,
-}: {
-  ward: Ward; cityId: string; selected: boolean; onSelect: () => void; onDeleted: () => void;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteWard(cityId, ward.id),
-    onSuccess: onDeleted,
-  });
-
-  return (
-    <tr
-      onClick={onSelect}
-      className={`border-b border-slate-700/50 last:border-0 group cursor-pointer transition-colors ${
-        selected ? "bg-emerald-500/10" : "hover:bg-slate-700/30"
-      }`}
-    >
-      <td className={`py-1.5 font-medium ${selected ? "text-emerald-300" : "text-white"}`}>
-        {selected && <span className="mr-1.5 text-emerald-400">▶</span>}
-        {ward.name}
-      </td>
-      <td className="py-1.5 text-slate-300">
-        {ward.population ? ward.population.toLocaleString() : "—"}
-      </td>
-      <td className="py-1.5 text-slate-400 text-xs">
-        {(ward as unknown as Record<string, unknown>).geometry ? "✓ GeoJSON" : "—"}
-      </td>
-      <td className="py-1.5" onClick={(e) => e.stopPropagation()}>
-        {confirmDelete ? (
-          <span className="flex items-center gap-1">
-            <button
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
-              className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
-            >
-              {deleteMutation.isPending ? "…" : "Yes"}
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-white text-xs transition-colors"
-            >
-              No
-            </button>
-          </span>
-        ) : (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            Delete
-          </button>
-        )}
-      </td>
-    </tr>
   );
 }
 

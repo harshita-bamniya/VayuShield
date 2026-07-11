@@ -468,7 +468,10 @@ async def generate_ward_advisories(
         ward_name = aqi_result[1] if aqi_result else ward_id
         # Get dominant source from city attribution (ward-level attribution not yet separate)
         attr_row = await db.execute(
-            text("SELECT dominant_source FROM attributions WHERE city_id = :cid ORDER BY computed_at DESC LIMIT 1"),
+            text(
+                "SELECT dominant_source FROM attributions"
+                " WHERE city_id = :cid ORDER BY computed_at DESC LIMIT 1"
+            ),
             {"cid": city_id},
         )
         attr = attr_row.fetchone()
@@ -479,14 +482,21 @@ async def generate_ward_advisories(
     skipped = 0
 
     for lang in langs:
-        already_exists = await repo.advisory_exists_today(db, city_id, aqi_level, lang, ward_id=ward_id)
+        already_exists = await repo.advisory_exists_today(
+            db, city_id, aqi_level, lang, ward_id=ward_id
+        )
         if already_exists:
             skipped += 1
             continue
 
         title, body = await _build_advisory_text(lang, aqi_level, dominant_source, aqi_value)
         # Prepend ward name to title
-        lang_ward_prefix = {"en": f"{ward_name} Ward — ", "hi": f"{ward_name} वार्ड — ", "kn": f"{ward_name} ವಾರ್ಡ್ — ", "ta": f"{ward_name} வார்டு — "}
+        lang_ward_prefix = {
+            "en": f"{ward_name} Ward — ",
+            "hi": f"{ward_name} वार्ड — ",
+            "kn": f"{ward_name} ವಾರ್ಡ್ — ",
+            "ta": f"{ward_name} வார்டு — ",
+        }
         title = lang_ward_prefix.get(lang, f"{ward_name} — ") + title
 
         row = await repo.create_advisory(
@@ -504,7 +514,9 @@ async def generate_ward_advisories(
 
     await db.commit()
     advisories = [AdvisoryOut(**item) for item in generated_items]
-    return AdvisoryGenerateResponse(generated=len(advisories), skipped=skipped, advisories=advisories)
+    return AdvisoryGenerateResponse(
+        generated=len(advisories), skipped=skipped, advisories=advisories
+    )
 
 
 def build_ivr_text(advisory: AdvisoryOut, language: str = "en") -> str:
@@ -521,7 +533,7 @@ def build_ivr_text(advisory: AdvisoryOut, language: str = "en") -> str:
                 "Moderate": "Sensitive people should avoid prolonged outdoor exposure.",
                 "Poor": "Wear a mask outdoors. Avoid exercise outside.",
                 "Very Poor": "Stay indoors. Close windows. Seek medical help if breathless.",
-                "Severe": "Emergency. All outdoor activity banned. Wear respirator if you must go out.",
+                "Severe": "Emergency. All outdoor activity banned. Wear respirator if you must go out.",  # noqa: E501
             }.get(aqi_level, "Follow local authority guidance.")
         ),
         "hi": (
@@ -570,9 +582,19 @@ async def get_ivr_advisory(
     )
     if not rows:
         # Try English fallback
-        rows, _ = await repo.list_advisories(db, city_id, language="en", channel=None, limit=1, offset=0)
+        rows, _ = await repo.list_advisories(
+            db, city_id, language="en", channel=None, limit=1, offset=0
+        )
     if not rows:
-        return {"ivr_text": "No advisory available at this time. Please check back later.", "language": language}
+        return {
+            "ivr_text": "No advisory available at this time. Please check back later.",
+            "language": language,
+        }
     advisory = AdvisoryOut(**rows[0])
     ivr_text = build_ivr_text(advisory, language=advisory.language)
-    return {"ivr_text": ivr_text, "language": advisory.language, "aqi_level": advisory.aqi_level, "advisory_id": advisory.id}
+    return {
+        "ivr_text": ivr_text,
+        "language": advisory.language,
+        "aqi_level": advisory.aqi_level,
+        "advisory_id": advisory.id,
+    }

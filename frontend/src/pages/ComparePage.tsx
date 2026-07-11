@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, AreaChart, Area,
+  Legend, ResponsiveContainer,
 } from "recharts";
 import client from "@/lib/apiClient";
 

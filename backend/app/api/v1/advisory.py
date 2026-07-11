@@ -77,7 +77,10 @@ async def get_ivr_advisory(
     ward_id: str | None = Query(None, description="Optional ward ID for hyperlocal IVR"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return a short TTS-friendly IVR script for the latest advisory. No auth required (public IVR endpoint)."""
+    """Return a short TTS-friendly IVR script for the latest advisory.
+
+    No auth required — intended for phone/IVR system integration.
+    """
     result = await service.get_ivr_advisory(db, city_id, language=language, ward_id=ward_id)
     return ApiEnvelope(data=result)
 

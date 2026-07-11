@@ -15,12 +15,18 @@ async def get_latest_forecast_run(
     """Return (generated_at, points) for the most recent forecast run."""
     if ward_id:
         result = await db.execute(
-            text("SELECT MAX(generated_at) FROM forecasts WHERE city_id = :city_id AND ward_id = :ward_id"),
+            text(
+                "SELECT MAX(generated_at) FROM forecasts"
+                " WHERE city_id = :city_id AND ward_id = :ward_id"
+            ),
             {"city_id": city_id, "ward_id": ward_id},
         )
     else:
         result = await db.execute(
-            text("SELECT MAX(generated_at) FROM forecasts WHERE city_id = :city_id AND ward_id IS NULL"),
+            text(
+                "SELECT MAX(generated_at) FROM forecasts"
+                " WHERE city_id = :city_id AND ward_id IS NULL"
+            ),
             {"city_id": city_id},
         )
     latest_gen = result.scalar_one_or_none()
@@ -45,12 +51,18 @@ async def mark_previous_stale(db: AsyncSession, city_id: str, ward_id: str | Non
     """Mark all previous forecast rows for this city/ward as stale."""
     if ward_id:
         await db.execute(
-            text("UPDATE forecasts SET is_stale = true WHERE city_id = :city_id AND ward_id = :ward_id AND is_stale = false"),
+            text(
+                "UPDATE forecasts SET is_stale = true"
+                " WHERE city_id = :city_id AND ward_id = :ward_id AND is_stale = false"
+            ),
             {"city_id": city_id, "ward_id": ward_id},
         )
     else:
         await db.execute(
-            text("UPDATE forecasts SET is_stale = true WHERE city_id = :city_id AND ward_id IS NULL AND is_stale = false"),
+            text(
+                "UPDATE forecasts SET is_stale = true"
+                " WHERE city_id = :city_id AND ward_id IS NULL AND is_stale = false"
+            ),
             {"city_id": city_id},
         )
     await db.commit()

@@ -1,6 +1,6 @@
 """Multi-city comparison API — sysadmin only."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -19,15 +19,15 @@ class CitySnapshot(BaseModel):
     city_name: str
     current_aqi: int | None
     aqi_category: str | None
-    trend_delta: int | None          # current avg minus 6h-ago avg (negative = improving)
-    peak_forecast_aqi: int | None    # next 72h peak
+    trend_delta: int | None  # current avg minus 6h-ago avg (negative = improving)
+    peak_forecast_aqi: int | None  # next 72h peak
     dominant_source: str | None
     attribution_confidence: float | None
     pending_enforcement: int
     dispatched_enforcement: int
     completed_enforcement: int
-    intervention_effectiveness: float | None   # completed / (completed + pending) [0–1]
-    aqi_history_24h: list[dict]      # [{hour, aqi}] for trend sparkline
+    intervention_effectiveness: float | None  # completed / (completed + pending) [0–1]
+    aqi_history_24h: list[dict]  # [{hour, aqi}] for trend sparkline
 
 
 class CompareOut(BaseModel):
@@ -85,11 +85,16 @@ async def compare_cities(
         def _category(aqi: int | None) -> str | None:
             if aqi is None:
                 return None
-            if aqi <= 50:   return "Good"
-            if aqi <= 100:  return "Satisfactory"
-            if aqi <= 200:  return "Moderate"
-            if aqi <= 300:  return "Poor"
-            if aqi <= 400:  return "Very Poor"
+            if aqi <= 50:
+                return "Good"
+            if aqi <= 100:
+                return "Satisfactory"
+            if aqi <= 200:
+                return "Moderate"
+            if aqi <= 300:
+                return "Poor"
+            if aqi <= 400:
+                return "Very Poor"
             return "Severe"
 
         # Peak forecast next 72h
@@ -156,25 +161,24 @@ async def compare_cities(
             """),
             {"cid": cid},
         )
-        aqi_history = [
-            {"hour": row[0].isoformat(), "aqi": row[1]}
-            for row in hist_rows.fetchall()
-        ]
+        aqi_history = [{"hour": row[0].isoformat(), "aqi": row[1]} for row in hist_rows.fetchall()]
 
-        snapshots.append(CitySnapshot(
-            city_id=cid,
-            city_name=city["name"],
-            current_aqi=current_aqi,
-            aqi_category=_category(current_aqi),
-            trend_delta=trend_delta,
-            peak_forecast_aqi=peak_forecast,
-            dominant_source=dominant_source,
-            attribution_confidence=confidence,
-            pending_enforcement=pending_cnt,
-            dispatched_enforcement=dispatched_cnt,
-            completed_enforcement=completed_cnt,
-            intervention_effectiveness=effectiveness,
-            aqi_history_24h=aqi_history,
-        ))
+        snapshots.append(
+            CitySnapshot(
+                city_id=cid,
+                city_name=city["name"],
+                current_aqi=current_aqi,
+                aqi_category=_category(current_aqi),
+                trend_delta=trend_delta,
+                peak_forecast_aqi=peak_forecast,
+                dominant_source=dominant_source,
+                attribution_confidence=confidence,
+                pending_enforcement=pending_cnt,
+                dispatched_enforcement=dispatched_cnt,
+                completed_enforcement=completed_cnt,
+                intervention_effectiveness=effectiveness,
+                aqi_history_24h=aqi_history,
+            )
+        )
 
     return ApiEnvelope(data=CompareOut(generated_at=now, cities=snapshots))
