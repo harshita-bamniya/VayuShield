@@ -27,11 +27,12 @@ async function fetchAttribution(cityId: string): Promise<AttributionResult> {
 }
 
 const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/enforcement", label: "Enforcement", icon: "🚨" },
-  { to: "/advisories", label: "Advisories", icon: "📢" },
-  { to: "/reports", label: "Reports", icon: "📄" },
-  { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
+  { to: "/dashboard", label: "Dashboard", icon: "📊", sysadmin: false },
+  { to: "/compare", label: "Compare Cities", icon: "🗺️", sysadmin: true },
+  { to: "/enforcement", label: "Enforcement", icon: "🚨", sysadmin: false },
+  { to: "/advisories", label: "Advisories", icon: "📢", sysadmin: false },
+  { to: "/reports", label: "Reports", icon: "📄", sysadmin: false },
+  { to: "/admin/cities", label: "City Admin", icon: "🏙️", sysadmin: false },
 ];
 
 function aqiCategory(aqi: number): string {
@@ -179,7 +180,7 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.filter((item) => !item.sysadmin || isSysadmin).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

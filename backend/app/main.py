@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.advisory import router as advisory_router
+from app.api.v1.compare import router as compare_router
 from app.api.v1.attribution import router as attribution_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cities import router as cities_router
@@ -100,6 +101,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(compare_router, prefix="/api/v1")  # must be before cities_router (avoids /{city_id} conflict)
 app.include_router(cities_router, prefix="/api/v1")
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(attribution_router, prefix="/api/v1")
