@@ -43,6 +43,8 @@ class AttributionRankingOut(BaseModel):
     wind_speed: float | None
     wind_dir: float | None
     wind_description: str | None
+    confidence_score: float | None = None
+    pollutant_snapshot: dict | None = None
 
 
 class AqiAlertOut(BaseModel):

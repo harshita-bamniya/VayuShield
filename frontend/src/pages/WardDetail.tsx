@@ -137,7 +137,7 @@ export default function WardDetail() {
           <div className="bg-slate-800 rounded-xl p-4">
             <h2 className="font-semibold mb-3 text-slate-200">
               Pollution Source Attribution
-              <span className="ml-2 text-xs text-slate-500">(city-level)</span>
+              <span className="ml-2 text-xs text-sky-500">(chemical fingerprint + wind)</span>
             </h2>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>

@@ -10,6 +10,21 @@ import { fetchPendingCount } from "@/features/enforcement/api";
 import { fetchAdvisoryCount } from "@/features/advisory/api";
 import { fetchWardsWithAqi } from "@/features/wards/api";
 import WardMap from "@/components/WardMap";
+import client from "@/lib/apiClient";
+
+interface AttributionResult {
+  dominant_source: string | null;
+  ranked_sources: { source_type: string; contribution_pct: number; rank: number }[];
+  confidence_score: number | null;
+  pollutant_snapshot: { pm25: number | null; pm10: number | null; no2: number | null; so2: number | null; co: number | null; o3: number | null } | null;
+  wind_description: string | null;
+  aqi: number | null;
+}
+
+async function fetchAttribution(cityId: string): Promise<AttributionResult> {
+  const resp = await client.get<{ data: AttributionResult }>(`/cities/${cityId}/attribution`);
+  return resp.data.data!;
+}
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -98,6 +113,13 @@ export default function Dashboard() {
     enabled: !!selectedCityId,
     refetchInterval: 1000 * 60 * 5,
     staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: attribution } = useQuery({
+    queryKey: ["attribution", selectedCityId],
+    queryFn: () => fetchAttribution(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 10,
   });
 
   const displayCity = selectedCity;
@@ -246,6 +268,121 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+
+          {/* Pollutant Readings + Source Attribution */}
+          {attribution && (
+            <div className="grid lg:grid-cols-2 gap-4 mb-4">
+              {/* Pollutant snapshot */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Live Pollutant Readings</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Latest station averages · µg/m³ unless noted</p>
+                  </div>
+                  {attribution.wind_description && (
+                    <span className="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">
+                      🌬 {attribution.wind_description}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { key: "pm25", label: "PM2.5", unit: "µg/m³", thresholds: [60, 90, 120], signal: "Combustion / burning" },
+                    { key: "pm10", label: "PM10", unit: "µg/m³", thresholds: [100, 150, 200], signal: "Coarse dust / construction" },
+                    { key: "no2",  label: "NO₂",  unit: "µg/m³", thresholds: [40, 80, 120],  signal: "Vehicular / industrial" },
+                    { key: "so2",  label: "SO₂",  unit: "µg/m³", thresholds: [8, 20, 40],    signal: "Industrial / coal burning" },
+                    { key: "co",   label: "CO",   unit: "mg/m³", thresholds: [0.8, 2.0, 3.5], signal: "Vehicles / incomplete combustion" },
+                    { key: "o3",   label: "O₃",   unit: "µg/m³", thresholds: [50, 80, 120],  signal: "Photochemical smog" },
+                  ].map(({ key, label, unit, thresholds, signal }) => {
+                    const val = attribution.pollutant_snapshot?.[key as keyof typeof attribution.pollutant_snapshot];
+                    const numVal = typeof val === "number" ? val : null;
+                    const color = numVal == null ? "text-slate-600"
+                      : numVal > thresholds[2] ? "text-red-400"
+                      : numVal > thresholds[1] ? "text-orange-400"
+                      : numVal > thresholds[0] ? "text-yellow-400"
+                      : "text-green-400";
+                    return (
+                      <div key={key} className="bg-slate-800 rounded-lg p-3" title={signal}>
+                        <p className="text-xs text-slate-500 mb-1">{label}</p>
+                        <p className={`text-xl font-bold font-mono ${color}`}>
+                          {numVal != null ? numVal.toFixed(key === "co" ? 2 : 1) : "—"}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5">{unit}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                {attribution.pollutant_snapshot?.pm25 && attribution.pollutant_snapshot?.pm10 && (
+                  <div className="mt-3 text-xs text-slate-500">
+                    PM10/PM2.5 ratio: <span className="font-mono text-slate-300">
+                      {(attribution.pollutant_snapshot.pm10 / attribution.pollutant_snapshot.pm25).toFixed(2)}
+                    </span>
+                    <span className="ml-2 text-slate-600">
+                      {(attribution.pollutant_snapshot.pm10 / attribution.pollutant_snapshot.pm25) > 2.5
+                        ? "→ coarse dust (construction / road)" : "→ fine particles (combustion)"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Attribution breakdown */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Source Attribution</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Chemical fingerprint + wind dispersion hybrid</p>
+                  </div>
+                  {attribution.confidence_score != null && (
+                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                      attribution.confidence_score >= 0.75 ? "bg-green-500/20 text-green-400"
+                      : attribution.confidence_score >= 0.5 ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-slate-700 text-slate-400"
+                    }`}>
+                      {Math.round(attribution.confidence_score * 100)}% confidence
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2.5">
+                  {(() => {
+                    const SOURCE_COLORS: Record<string, string> = {
+                      vehicular: "#f97316", industrial: "#8b5cf6",
+                      construction: "#eab308", agricultural: "#22c55e",
+                      fire: "#ef4444", other: "#64748b",
+                    };
+                    const SOURCE_ICONS: Record<string, string> = {
+                      vehicular: "🚗", industrial: "🏭",
+                      construction: "🏗️", agricultural: "🌾",
+                      fire: "🔥", other: "💨",
+                    };
+                    return (attribution.ranked_sources ?? [])
+                      .filter(s => s.contribution_pct > 0.1)
+                      .map(src => (
+                        <div key={src.source_type}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-slate-300 capitalize flex items-center gap-1.5">
+                              {SOURCE_ICONS[src.source_type] ?? "💨"} {src.source_type}
+                              {src.rank === 1 && (
+                                <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-semibold">Dominant</span>
+                              )}
+                            </span>
+                            <span className="text-xs font-mono text-slate-300">{src.contribution_pct.toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-2">
+                            <div
+                              className="h-2 rounded-full transition-all"
+                              style={{
+                                width: `${src.contribution_pct}%`,
+                                backgroundColor: SOURCE_COLORS[src.source_type] ?? "#64748b",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Ward map + forecast side by side */}
           <div className="grid lg:grid-cols-2 gap-4 mb-4">

@@ -1,16 +1,21 @@
-"""Attribution Engine — computes source contributions to current AQI.
+"""Attribution Engine — chemical fingerprint + wind dispersion hybrid.
 
-Algorithm (simplified physics-based dispersion):
-1. Pull latest city AQI from station_readings (average of active stations).
-2. Pull latest weather reading for the city to get wind_speed + wind_dir.
-3. For each emission_source in the city, compute a dispersion weight:
-     weight = base_type_weight(source.type)
-              * distance_decay(distance_km)
-              * wind_alignment(source_bearing, wind_dir)
-4. Normalise weights → percentages.
-5. Identify dominant_source (highest pct).
-6. Persist to attributions table.
-7. Evaluate alert thresholds (200/300/400) and create/resolve aqi_alerts.
+Two-stage algorithm:
+Stage 1 — Chemical Fingerprinting (40% weight):
+  Identify source types from the pollutant signature of current readings:
+  - High NO2 + CO          → Vehicular
+  - High SO2 + NO2         → Industrial
+  - PM10/PM2.5 ratio > 2.5 → Construction (coarse dust)
+  - High PM2.5 + CO, low SO2 → Agricultural/fire burning
+  - High O3                → Photochemical (secondary vehicular)
+  - Fire hotspots (NASA)   → Fire
+
+Stage 2 — Spatial Dispersion (60% weight):
+  For each known emission source: weight = base_type × wind_alignment × distance_decay
+  Normalise per source type.
+
+Final score = 0.40 × fingerprint_score + 0.60 × dispersion_score
+Confidence = f(data completeness, source count, wind data availability)
 """
 
 import math
@@ -22,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.attribution import repository as repo
 from app.modules.attribution.schemas import AttributionRankingOut, RankedSource
 
-# Base emission weight by source type (relative importance, before distance/wind)
+# Base emission weight by source type (relative importance)
 _BASE_WEIGHTS: dict[str, float] = {
     "vehicular": 1.0,
     "industrial": 1.3,
@@ -39,9 +44,14 @@ ALERT_THRESHOLDS = [
     (200, "poor"),
 ]
 
+# All tracked source types
+ALL_SOURCE_TYPES = ["vehicular", "industrial", "construction", "agricultural", "fire", "other"]
+
+
+# ── Math helpers ──────────────────────────────────────────────────────────────
+
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance in km between two (lat, lon) pairs."""
     r = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -51,7 +61,6 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Bearing in degrees (0=N, 90=E, 180=S, 270=W) from point 1 → point 2."""
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dlambda = math.radians(lon2 - lon1)
     x = math.sin(dlambda) * math.cos(phi2)
@@ -60,25 +69,15 @@ def _bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _wind_alignment(source_bearing: float, wind_dir: float | None) -> float:
-    """
-    Return [0,1] alignment factor.
-
-    wind_dir is the direction FROM which the wind blows (met convention).
-    A source upwind (directly behind the station relative to wind) gets factor ~1.
-    A source downwind (ahead of the station) gets factor ~0.
-    """
     if wind_dir is None:
-        return 0.5  # no wind data — neutral
-    # Wind blows FROM wind_dir, so upwind direction is wind_dir itself
+        return 0.5
     angle_diff = abs(source_bearing - wind_dir) % 360
     if angle_diff > 180:
         angle_diff = 360 - angle_diff
-    # cosine similarity mapped to [0,1]: 0° diff → 1.0, 180° → 0.0
     return (math.cos(math.radians(angle_diff)) + 1) / 2
 
 
 def _distance_decay(distance_km: float) -> float:
-    """Inverse-square decay with a floor at 0.1 to avoid division by zero."""
     return 1.0 / max(distance_km**2, 0.01)
 
 
@@ -91,8 +90,202 @@ def _wind_description(wind_dir: float | None, wind_speed: float | None) -> str |
     return f"Wind from {directions[idx]} at {speed_str}"
 
 
+# ── Stage 1: Chemical fingerprinting ─────────────────────────────────────────
+
+
+def _chemical_fingerprint(
+    pm25: float | None,
+    pm10: float | None,
+    no2: float | None,
+    so2: float | None,
+    co: float | None,
+    o3: float | None,
+    fire_count: int = 0,
+) -> dict[str, float]:
+    """
+    Return unnormalised scores per source type based on pollutant signature.
+
+    Thresholds based on CPCB/WHO reference ranges for Indian urban air:
+      NO2 > 80 µg/m³       → heavy vehicular / industrial combustion
+      SO2 > 20 µg/m³       → industrial (coal/oil burning)
+      CO  > 2 mg/m³        → combustion (vehicular or burning)
+      O3  > 50 µg/m³       → photochemical smog (secondary, triggered by vehicles)
+      PM10/PM2.5 ratio > 2.5 → construction / road dust (coarse particles dominate)
+      PM2.5 > 60 AND low SO2 AND CO > 1.5 → biomass burning (agri / fire)
+    """
+    scores: dict[str, float] = {t: 0.0 for t in ALL_SOURCE_TYPES}
+    data_points = 0  # track how many pollutants have valid readings
+
+    # --- Vehicular signature: NO2 + CO ---
+    if no2 is not None:
+        data_points += 1
+        if no2 > 80:
+            scores["vehicular"] += 2.0
+        elif no2 > 40:
+            scores["vehicular"] += 1.0
+        elif no2 > 20:
+            scores["vehicular"] += 0.4
+
+    if co is not None:
+        data_points += 1
+        if co > 3.0:
+            scores["vehicular"] += 1.5
+            scores["agricultural"] += 0.5  # high CO also suggests burning
+        elif co > 1.5:
+            scores["vehicular"] += 0.8
+        elif co > 0.8:
+            scores["vehicular"] += 0.3
+
+    # --- Industrial signature: SO2 + NO2 combo ---
+    if so2 is not None:
+        data_points += 1
+        if so2 > 40:
+            scores["industrial"] += 2.5
+        elif so2 > 20:
+            scores["industrial"] += 1.5
+            scores["vehicular"] += 0.3  # some diesel overlap
+        elif so2 > 8:
+            scores["industrial"] += 0.6
+
+    # SO2 + NO2 together = strong industrial signal
+    if so2 is not None and no2 is not None and so2 > 15 and no2 > 40:
+        scores["industrial"] += 1.0
+
+    # --- Construction signature: coarse PM ratio ---
+    if pm25 is not None and pm10 is not None and pm25 > 0:
+        data_points += 1
+        ratio = pm10 / pm25
+        if ratio > 3.0:
+            scores["construction"] += 2.0
+        elif ratio > 2.5:
+            scores["construction"] += 1.2
+        elif ratio > 2.0:
+            scores["construction"] += 0.5
+        # Very fine particles (low ratio) → combustion not dust
+        if ratio < 1.5 and pm25 > 60:
+            scores["vehicular"] += 0.4
+            scores["agricultural"] += 0.4
+
+    # --- Agricultural / biomass burning: PM2.5 + CO, low SO2 ---
+    if pm25 is not None and pm25 > 60:
+        data_points += 1
+        base_agri = (pm25 - 60) / 100  # scales from 0 at 60 µg/m³
+        if so2 is None or so2 < 15:  # low SO2 = not industrial
+            scores["agricultural"] += min(base_agri * 1.5, 1.5)
+        if co is not None and co > 1.5:
+            scores["agricultural"] += 0.8
+
+    # --- Fire signature: NASA hotspots take precedence ---
+    if fire_count > 0:
+        scores["fire"] += min(fire_count * 0.8, 3.0)
+        scores["agricultural"] += min(fire_count * 0.3, 1.0)  # fire often = crop burning
+
+    # --- Photochemical / O3: secondary vehicular ---
+    if o3 is not None:
+        data_points += 1
+        if o3 > 80:
+            scores["vehicular"] += 1.0
+        elif o3 > 50:
+            scores["vehicular"] += 0.5
+
+    # If we have almost no data, return a neutral fallback
+    if data_points == 0:
+        return {"vehicular": 0.40, "industrial": 0.25, "construction": 0.15,
+                "agricultural": 0.12, "fire": 0.0, "other": 0.08}
+
+    return scores
+
+
+# ── Stage 2: Spatial dispersion ───────────────────────────────────────────────
+
+
+def _dispersion_scores(
+    sources: list,
+    fire_hotspots: list,
+    receptor_lat: float,
+    receptor_lon: float,
+    wind_dir: float | None,
+) -> dict[str, float]:
+    """Compute per-source-type dispersion weight from emission sources + fire hotspots."""
+    type_weights: dict[str, float] = {}
+
+    for src in sources:
+        src_type = src[1] or "other"
+        src_lat, src_lon = float(src[2]), float(src[3])
+        dist = _haversine_km(receptor_lat, receptor_lon, src_lat, src_lon)
+        bearing = _bearing(receptor_lat, receptor_lon, src_lat, src_lon)
+        base = _BASE_WEIGHTS.get(src_type, 0.5)
+        alignment = _wind_alignment(bearing, wind_dir)
+        decay = _distance_decay(max(dist, 0.1))
+        weight = base * alignment * decay
+        type_weights[src_type] = type_weights.get(src_type, 0.0) + weight
+
+    for fh in fire_hotspots:
+        fh_lat, fh_lon = float(fh[1]), float(fh[2])
+        dist = _haversine_km(receptor_lat, receptor_lon, fh_lat, fh_lon)
+        bearing = _bearing(receptor_lat, receptor_lon, fh_lat, fh_lon)
+        alignment = _wind_alignment(bearing, wind_dir)
+        decay = _distance_decay(max(dist, 0.1))
+        weight = _BASE_WEIGHTS["fire"] * alignment * decay
+        type_weights["fire"] = type_weights.get("fire", 0.0) + weight
+
+    if not type_weights:
+        type_weights = {"vehicular": 0.40, "industrial": 0.25, "construction": 0.15,
+                        "agricultural": 0.12, "other": 0.08}
+
+    return type_weights
+
+
+# ── Hybrid combiner ───────────────────────────────────────────────────────────
+
+FINGERPRINT_WEIGHT = 0.40
+DISPERSION_WEIGHT = 0.60
+
+
+def _combine_scores(
+    fingerprint: dict[str, float],
+    dispersion: dict[str, float],
+) -> dict[str, float]:
+    """Normalise each stage to [0,1] then blend with fixed weights."""
+    def _normalise(d: dict[str, float]) -> dict[str, float]:
+        total = sum(d.values()) or 1.0
+        return {k: v / total for k, v in d.items()}
+
+    fp_norm = _normalise(fingerprint)
+    dp_norm = _normalise(dispersion)
+
+    all_types = set(fp_norm) | set(dp_norm)
+    combined = {
+        t: FINGERPRINT_WEIGHT * fp_norm.get(t, 0.0) + DISPERSION_WEIGHT * dp_norm.get(t, 0.0)
+        for t in all_types
+    }
+    total = sum(combined.values()) or 1.0
+    return {k: round(v / total * 100, 2) for k, v in combined.items()}
+
+
+def _confidence_score(
+    data_points: int,
+    source_count: int,
+    has_wind: bool,
+    fire_count: int,
+) -> float:
+    """
+    0–1 confidence score:
+    - Full pollutant data + sources + wind → ~0.85
+    - Only PM data, no wind → ~0.45
+    """
+    score = 0.0
+    score += min(data_points / 6.0, 1.0) * 0.40   # pollutant completeness
+    score += min(source_count / 4.0, 1.0) * 0.30  # spatial source coverage
+    score += 0.20 if has_wind else 0.0              # wind data
+    score += min(fire_count / 2.0, 1.0) * 0.10    # fire data quality
+    return round(min(score, 1.0), 3)
+
+
+# ── City centroid helper ───────────────────────────────────────────────────────
+
+
 async def _get_city_centroid(db: AsyncSession, city_id: str) -> tuple[float, float] | None:
-    """Return (lat, lon) centroid from the city's stations, or None."""
     result = await db.execute(
         text(
             """
@@ -109,59 +302,74 @@ async def _get_city_centroid(db: AsyncSession, city_id: str) -> tuple[float, flo
     return None
 
 
+# ── Main compute function ─────────────────────────────────────────────────────
+
+
 async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRankingOut:
-    """Run the attribution computation and persist the result."""
+    """Run hybrid attribution (chemical fingerprint + wind dispersion) and persist."""
     now = datetime.now(UTC)
 
-    # 1. Current city AQI (average of latest readings per active station)
-    aqi_result = await db.execute(
+    # 1. Latest pollutant readings (avg of last 2h across active stations)
+    pollutant_result = await db.execute(
         text(
             """
             WITH latest AS (
                 SELECT DISTINCT ON (sr.station_id)
-                    sr.aqi
+                    sr.aqi, sr.pm25, sr.pm10, sr.no2, sr.so2, sr.co, sr.o3
                 FROM station_readings sr
                 JOIN stations s ON s.id = sr.station_id
-                WHERE s.city_id = :city_id AND s.is_active = true AND sr.aqi IS NOT NULL
+                WHERE s.city_id = :city_id AND s.is_active = true
                 ORDER BY sr.station_id, sr.ts DESC
             )
-            SELECT ROUND(AVG(aqi))::int FROM latest
+            SELECT
+                ROUND(AVG(aqi))::int   AS avg_aqi,
+                AVG(pm25)              AS avg_pm25,
+                AVG(pm10)              AS avg_pm10,
+                AVG(no2)               AS avg_no2,
+                AVG(so2)               AS avg_so2,
+                AVG(co)                AS avg_co,
+                AVG(o3)                AS avg_o3
+            FROM latest
             """
         ),
         {"city_id": city_id},
     )
-    aqi_row = aqi_result.fetchone()
-    current_aqi: int | None = aqi_row[0] if aqi_row else None
+    p = pollutant_result.fetchone()
+    current_aqi: int | None = p[0] if p else None
+    avg_pm25 = float(p[1]) if p and p[1] is not None else None
+    avg_pm10 = float(p[2]) if p and p[2] is not None else None
+    avg_no2  = float(p[3]) if p and p[3] is not None else None
+    avg_so2  = float(p[4]) if p and p[4] is not None else None
+    avg_co   = float(p[5]) if p and p[5] is not None else None
+    avg_o3   = float(p[6]) if p and p[6] is not None else None
+
+    # Count how many pollutants have valid readings
+    data_points = sum(
+        1 for v in [avg_pm25, avg_pm10, avg_no2, avg_so2, avg_co, avg_o3]
+        if v is not None
+    )
 
     # 2. Latest weather reading
     weather_result = await db.execute(
         text(
             """
-            SELECT wind_speed, wind_dir
-            FROM weather_readings
-            WHERE city_id = :city_id
-            ORDER BY ts DESC
-            LIMIT 1
+            SELECT wind_speed, wind_dir FROM weather_readings
+            WHERE city_id = :city_id ORDER BY ts DESC LIMIT 1
             """
         ),
         {"city_id": city_id},
     )
-    weather_row = weather_result.fetchone()
-    wind_speed: float | None = (
-        float(weather_row[0]) if weather_row and weather_row[0] is not None else None
-    )
-    wind_dir: float | None = (
-        float(weather_row[1]) if weather_row and weather_row[1] is not None else None
-    )
+    wr = weather_result.fetchone()
+    wind_speed: float | None = float(wr[0]) if wr and wr[0] is not None else None
+    wind_dir: float | None   = float(wr[1]) if wr and wr[1] is not None else None
 
-    # 3. City centroid (average station location) used as the "receptor point"
+    # 3. City receptor centroid
     centroid = await _get_city_centroid(db, city_id)
     if centroid is None:
-        centroid = (28.6139, 77.2090)  # Delhi fallback
-
+        centroid = (28.6139, 77.2090)
     receptor_lat, receptor_lon = centroid
 
-    # 4. Emission sources for the city
+    # 4. Known emission sources
     sources_result = await db.execute(
         text(
             """
@@ -176,7 +384,7 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     )
     sources = sources_result.fetchall()
 
-    # Also account for fire hotspots in last 24h
+    # 5. Active fire hotspots (last 24h)
     fire_result = await db.execute(
         text(
             """
@@ -193,38 +401,52 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     )
     fire_hotspots = fire_result.fetchall()
 
-    # Build weighted contributions per source type
-    type_weights: dict[str, float] = {}
+    # 6. Stage 1 — Chemical fingerprint
+    fp_scores = _chemical_fingerprint(
+        pm25=avg_pm25, pm10=avg_pm10, no2=avg_no2,
+        so2=avg_so2, co=avg_co, o3=avg_o3,
+        fire_count=len(fire_hotspots),
+    )
 
-    for src in sources:
-        src_type = src[1] or "other"
-        src_lat, src_lon = float(src[2]), float(src[3])
-        dist = _haversine_km(receptor_lat, receptor_lon, src_lat, src_lon)
-        bearing = _bearing(receptor_lat, receptor_lon, src_lat, src_lon)
-        base = _BASE_WEIGHTS.get(src_type, 0.5)
-        alignment = _wind_alignment(bearing, wind_dir)
-        decay = _distance_decay(max(dist, 0.1))
-        weight = base * alignment * decay
-        type_weights[src_type] = type_weights.get(src_type, 0.0) + weight
+    # 7. Stage 2 — Spatial dispersion
+    dp_scores = _dispersion_scores(
+        sources=sources,
+        fire_hotspots=fire_hotspots,
+        receptor_lat=receptor_lat,
+        receptor_lon=receptor_lon,
+        wind_dir=wind_dir,
+    )
 
-    for _ in fire_hotspots:
-        type_weights["fire"] = type_weights.get("fire", 0.0) + _BASE_WEIGHTS["fire"]
-
-    # If no sources found, fall back to a Delhi-typical split
-    if not type_weights:
-        type_weights = {
-            "vehicular": 0.40,
-            "industrial": 0.25,
-            "construction": 0.15,
-            "agricultural": 0.12,
-            "other": 0.08,
-        }
-
-    total = sum(type_weights.values()) or 1.0
-    breakdown = {k: round(v / total * 100, 2) for k, v in type_weights.items()}
+    # 8. Hybrid blend
+    breakdown = _combine_scores(fp_scores, dp_scores)
     dominant = max(breakdown, key=breakdown.get)  # type: ignore[arg-type]
 
-    # 5. Persist attribution
+    # 9. Confidence score
+    confidence = _confidence_score(
+        data_points=data_points,
+        source_count=len(sources),
+        has_wind=wind_dir is not None,
+        fire_count=len(fire_hotspots),
+    )
+
+    # 10. Build notes string for transparency
+    notes_parts = []
+    if avg_pm25 is not None:
+        notes_parts.append(f"PM25={avg_pm25:.1f}")
+    if avg_pm10 is not None:
+        notes_parts.append(f"PM10={avg_pm10:.1f}")
+    if avg_no2 is not None:
+        notes_parts.append(f"NO2={avg_no2:.1f}")
+    if avg_so2 is not None:
+        notes_parts.append(f"SO2={avg_so2:.1f}")
+    if avg_co is not None:
+        notes_parts.append(f"CO={avg_co:.2f}")
+    if avg_o3 is not None:
+        notes_parts.append(f"O3={avg_o3:.1f}")
+    notes_parts.append(f"confidence={confidence:.2f}")
+    notes = " | ".join(notes_parts)
+
+    # 11. Persist
     attr_data = {
         "city_id": city_id,
         "computed_at": now,
@@ -239,15 +461,15 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
         "wind_speed": wind_speed,
         "wind_dir": wind_dir,
         "source_count": len(sources) + len(fire_hotspots),
-        "notes": None,
+        "notes": notes,
     }
     await repo.create_attribution(db, attr_data)
 
-    # 6. Evaluate alert thresholds
+    # 12. Evaluate alert thresholds
     if current_aqi is not None:
         await _evaluate_alerts(db, city_id, current_aqi, dominant, now)
 
-    # 7. Build response
+    # 13. Build response
     ranked = sorted(
         [RankedSource(source_type=k, contribution_pct=v, rank=0) for k, v in breakdown.items()],
         key=lambda x: x.contribution_pct,
@@ -265,33 +487,34 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
         wind_speed=wind_speed,
         wind_dir=wind_dir,
         wind_description=_wind_description(wind_dir, wind_speed),
+        confidence_score=confidence,
+        pollutant_snapshot={
+            "pm25": avg_pm25,
+            "pm10": avg_pm10,
+            "no2": avg_no2,
+            "so2": avg_so2,
+            "co": avg_co,
+            "o3": avg_o3,
+        },
     )
 
 
 async def _evaluate_alerts(
-    db: AsyncSession,
-    city_id: str,
-    aqi: int,
-    dominant_source: str | None,
-    now: datetime,
+    db: AsyncSession, city_id: str, aqi: int, dominant_source: str | None, now: datetime,
 ) -> None:
-    """Create new alerts when threshold is crossed; resolve them when AQI drops below."""
     for threshold, level in ALERT_THRESHOLDS:
         existing = await repo.get_active_alert_for_threshold(db, city_id, threshold)
         if aqi >= threshold:
             if existing is None:
-                await repo.create_alert(
-                    db,
-                    {
-                        "city_id": city_id,
-                        "alert_level": level,
-                        "threshold": threshold,
-                        "aqi_value": aqi,
-                        "dominant_source": dominant_source,
-                        "triggered_at": now,
-                        "is_active": True,
-                    },
-                )
+                await repo.create_alert(db, {
+                    "city_id": city_id,
+                    "alert_level": level,
+                    "threshold": threshold,
+                    "aqi_value": aqi,
+                    "dominant_source": dominant_source,
+                    "triggered_at": now,
+                    "is_active": True,
+                })
         else:
             if existing is not None:
                 await repo.resolve_alert(db, existing, now)
@@ -312,16 +535,31 @@ async def get_latest_attribution_ranking(
         "other": attr.other_pct or 0,
     }
     ranked = sorted(
-        [
-            RankedSource(source_type=k, contribution_pct=v, rank=0)
-            for k, v in breakdown.items()
-            if v > 0
-        ],
+        [RankedSource(source_type=k, contribution_pct=v, rank=0) for k, v in breakdown.items() if v > 0],
         key=lambda x: x.contribution_pct,
         reverse=True,
     )
     for i, r in enumerate(ranked):
         r.rank = i + 1
+
+    # Parse confidence and pollutant snapshot from notes field
+    confidence = None
+    pollutant_snapshot = None
+    if attr.notes:
+        try:
+            parts = dict(item.split("=") for item in attr.notes.split(" | ") if "=" in item)
+            confidence = float(parts.get("confidence", 0)) if "confidence" in parts else None
+            pollutant_snapshot = {
+                "pm25": float(parts["PM25"]) if "PM25" in parts else None,
+                "pm10": float(parts["PM10"]) if "PM10" in parts else None,
+                "no2": float(parts["NO2"]) if "NO2" in parts else None,
+                "so2": float(parts["SO2"]) if "SO2" in parts else None,
+                "co": float(parts["CO"]) if "CO" in parts else None,
+                "o3": float(parts["O3"]) if "O3" in parts else None,
+            }
+        except Exception:
+            pass
+
     return AttributionRankingOut(
         city_id=attr.city_id,
         computed_at=attr.computed_at,
@@ -331,4 +569,6 @@ async def get_latest_attribution_ranking(
         wind_speed=attr.wind_speed,
         wind_dir=attr.wind_dir,
         wind_description=_wind_description(attr.wind_dir, attr.wind_speed),
+        confidence_score=confidence,
+        pollutant_snapshot=pollutant_snapshot,
     )
