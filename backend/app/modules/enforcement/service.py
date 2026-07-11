@@ -1,12 +1,16 @@
 """Enforcement Agent — priority scoring and evidence brief generation.
 
 Scoring formula:
-    priority_score = 0.35 × source_attribution
+    priority_score = 0.35 × source_attribution  (60% category pct + 40% spatial proximity)
                    + 0.30 × forecast_severity
                    + 0.20 × permit_status
                    + 0.15 × days_since_inspection
+
+Spatial proximity: haversine distance from source to worst-AQI ward centroid,
+weighted by wind alignment (upwind sources score higher).
 """
 
+import math
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
@@ -46,6 +50,51 @@ def _attribution_weight(source_type: str, breakdown: dict) -> float:
     return min(pct / 100.0, 1.0)
 
 
+def _spatial_proximity_score(
+    src_lat: float | None,
+    src_lon: float | None,
+    ward_lat: float | None,
+    ward_lon: float | None,
+    wind_dir: float | None,
+    max_km: float = 15.0,
+) -> float:
+    """Score [0, 1] — how directly upwind and close a source is to the worst ward.
+
+    Distance factor: 1.0 at 0 km, 0 at max_km.
+    Wind alignment: 1.0 when source is directly upwind (bearing from source to ward
+    matches wind direction), 0 when perpendicular or downwind.
+    Returns 0.5 (neutral) when coordinates are unavailable.
+    """
+    if src_lat is None or src_lon is None or ward_lat is None or ward_lon is None:
+        return 0.5
+
+    dlat = math.radians(ward_lat - src_lat)
+    dlon = math.radians(ward_lon - src_lon)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(src_lat)) * math.cos(math.radians(ward_lat)) * math.sin(dlon / 2) ** 2)
+    dist_km = 6371 * 2 * math.asin(math.sqrt(max(0.0, a)))
+
+    if dist_km > max_km:
+        return 0.0
+
+    dist_factor = 1.0 - dist_km / max_km
+
+    if wind_dir is None:
+        return dist_factor * 0.7  # no wind info — partial credit
+
+    # Bearing FROM source TO ward
+    dy = ward_lat - src_lat
+    dx = (ward_lon - src_lon) * math.cos(math.radians((src_lat + ward_lat) / 2))
+    bearing = (math.degrees(math.atan2(dx, dy)) + 360) % 360
+
+    # Angular difference between bearing and wind direction
+    diff = abs(bearing - wind_dir) % 360
+    diff = min(diff, 360 - diff)
+    wind_factor = max(0.0, 1.0 - diff / 90.0)  # 1.0 at 0°, 0 at 90°+
+
+    return dist_factor * wind_factor
+
+
 def _build_evidence_brief_template(
     source_name: str,
     source_type: str,
@@ -54,6 +103,8 @@ def _build_evidence_brief_template(
     attribution_pct: float,
     peak_aqi_24h: float,
     days_since: int | None,
+    dist_to_hotspot_km: float | None = None,
+    spatial_score: float | None = None,
 ) -> str:
     days_str = f"{days_since} days" if days_since is not None else "never"
     permit_note = {
@@ -61,11 +112,18 @@ def _build_evidence_brief_template(
         "pending": "permit is PENDING renewal",
         "active": "permit is active",
     }.get(permit_status, "permit status unknown")
+    spatial_note = ""
+    if dist_to_hotspot_km is not None:
+        spatial_note = (
+            f" Spatial analysis places this source {dist_to_hotspot_km:.1f} km from the "
+            f"current pollution hotspot ward (proximity score {spatial_score:.2f}/1.00)."
+        )
     return (
         f"{source_name} ({source_type}) has been assigned a priority score of "
         f"{priority_score:.2f}/1.00. "
-        f"This source accounts for approximately {attribution_pct:.1f}% of current city "
-        f"pollution attribution; the 24-hour peak forecast AQI is {peak_aqi_24h:.0f}. "
+        f"This source type accounts for approximately {attribution_pct:.1f}% of current city "
+        f"pollution attribution; the 24-hour peak forecast AQI is {peak_aqi_24h:.0f}."
+        f"{spatial_note} "
         f"The {permit_note} and the site was last inspected {days_str} ago."
     )
 
@@ -78,14 +136,23 @@ async def _generate_evidence_brief(
     attribution_pct: float,
     peak_aqi_24h: float,
     days_since: int | None,
+    dist_to_hotspot_km: float | None = None,
+    spatial_score: float | None = None,
 ) -> str:
     """Generate evidence brief — tries Claude first, falls back to template."""
     days_str = f"{days_since} days" if days_since is not None else "never"
+    spatial_detail = ""
+    if dist_to_hotspot_km is not None:
+        spatial_detail = (
+            f"spatial proximity to worst pollution ward = {dist_to_hotspot_km:.1f} km "
+            f"(proximity score {spatial_score:.2f}/1.00), "
+        )
     prompt = (
         f"Write a concise 5-sentence enforcement evidence brief for an air quality inspector. "
         f"Details: source name = {source_name}, type = {source_type}, "
         f"priority score = {priority_score:.2f}/1.00, "
-        f"attribution = {attribution_pct:.1f}% of city pollution, "
+        f"attribution = {attribution_pct:.1f}% of city pollution by source type, "
+        f"{spatial_detail}"
         f"24h peak forecast AQI = {peak_aqi_24h:.0f}, "
         f"permit status = {permit_status}, last inspected = {days_str} ago. "
         f"Be factual, concise, and professional. Do not use bullet points."
@@ -108,6 +175,8 @@ async def _generate_evidence_brief(
         attribution_pct,
         peak_aqi_24h,
         days_since,
+        dist_to_hotspot_km=dist_to_hotspot_km,
+        spatial_score=spatial_score,
     )
 
 
@@ -193,11 +262,13 @@ async def regenerate_ai_brief(
 async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
     """Re-score all active emission sources and upsert enforcement queue."""
 
-    # 1. Fetch all emission sources for city
+    # 1. Fetch all emission sources with geometry
     src_rows = await db.execute(
         text(
             """
-            SELECT id, name, type, permit_status, last_inspected_at
+            SELECT id, name, type, permit_status, last_inspected_at,
+                   ST_Y(geometry::geometry) AS src_lat,
+                   ST_X(geometry::geometry) AS src_lon
             FROM emission_sources
             WHERE city_id = :city_id
             ORDER BY name
@@ -260,10 +331,47 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
         forecast_id = fc[0]
         peak_aqi_24h = float(fc[1])
 
-    # 4. Score each source and upsert
+    # 4a. Worst-AQI ward centroid (average station coords for the worst ward)
+    worst_ward_result = await db.execute(
+        text("""
+            SELECT AVG(ST_Y(st.geometry::geometry)) AS lat,
+                   AVG(ST_X(st.geometry::geometry)) AS lon
+            FROM stations st
+            JOIN station_readings sr ON sr.station_id = st.id
+            WHERE st.city_id = :city_id
+              AND st.ward_id IS NOT NULL
+              AND sr.aqi IS NOT NULL
+              AND sr.ts >= NOW() - INTERVAL '2 hours'
+            GROUP BY st.ward_id
+            ORDER BY AVG(sr.aqi) DESC
+            LIMIT 1
+        """),
+        {"city_id": city_id},
+    )
+    worst_row = worst_ward_result.fetchone()
+    worst_lat: float | None = float(worst_row[0]) if worst_row and worst_row[0] else None
+    worst_lon: float | None = float(worst_row[1]) if worst_row and worst_row[1] else None
+
+    # 4b. Current wind direction for the city
+    wind_result = await db.execute(
+        text("SELECT wind_dir FROM weather_readings WHERE city_id = :city_id ORDER BY ts DESC LIMIT 1"),
+        {"city_id": city_id},
+    )
+    wind_row = wind_result.fetchone()
+    current_wind_dir: float | None = float(wind_row[0]) if wind_row and wind_row[0] is not None else None
+
+    # 5. Score each source and upsert
     scored: list[dict] = []
     for src in sources:
-        attr_w = _attribution_weight(src["type"], breakdown)
+        # Blend: 60% category attribution + 40% spatial proximity to worst ward
+        category_w = _attribution_weight(src["type"], breakdown)
+        spatial_w = _spatial_proximity_score(
+            src.get("src_lat"), src.get("src_lon"),
+            worst_lat, worst_lon,
+            current_wind_dir,
+        )
+        attr_w = 0.60 * category_w + 0.40 * spatial_w
+
         fc_w = _forecast_severity(peak_aqi_24h)
         permit_w = _permit_score(src["permit_status"])
         last_inspected_at = src["last_inspected_at"]
@@ -283,6 +391,17 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
             ).days
 
         attribution_pct = breakdown.get(f"{src['type']}_pct", 0.0)
+
+        # Distance to worst ward (for brief context)
+        src_lat, src_lon = src.get("src_lat"), src.get("src_lon")
+        dist_km: float | None = None
+        if src_lat and src_lon and worst_lat and worst_lon:
+            dlat = math.radians(worst_lat - src_lat)
+            dlon = math.radians(worst_lon - src_lon)
+            a = (math.sin(dlat / 2) ** 2
+                 + math.cos(math.radians(src_lat)) * math.cos(math.radians(worst_lat)) * math.sin(dlon / 2) ** 2)
+            dist_km = round(6371 * 2 * math.asin(math.sqrt(max(0.0, a))), 1)
+
         brief = await _generate_evidence_brief(
             source_name=src["name"],
             source_type=src["type"],
@@ -291,6 +410,8 @@ async def rank_queue(db: AsyncSession, city_id: str) -> EnforcementListOut:
             attribution_pct=attribution_pct,
             peak_aqi_24h=peak_aqi_24h,
             days_since=days_since,
+            dist_to_hotspot_km=dist_km,
+            spatial_score=round(spatial_w, 2),
         )
 
         item_id = await repo.upsert_queue_item(
