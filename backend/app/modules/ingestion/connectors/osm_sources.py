@@ -19,19 +19,19 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # OSM tags → our emission source type
 _TAG_RULES: list[tuple[str, str, str]] = [
     # (key, value, our_type)
-    ("landuse",  "industrial",   "industrial"),
-    ("landuse",  "construction", "construction"),
-    ("man_made", "works",        "industrial"),
+    ("landuse", "industrial", "industrial"),
+    ("landuse", "construction", "construction"),
+    ("man_made", "works", "industrial"),
     ("man_made", "wastewater_plant", "industrial"),
-    ("man_made", "chimney",      "industrial"),
-    ("power",    "plant",        "industrial"),
-    ("power",    "generator",    "industrial"),
-    ("amenity",  "bus_station",  "vehicular"),
-    ("amenity",  "fuel",         "vehicular"),
-    ("landuse",  "landfill",     "industrial"),
-    ("landuse",  "quarry",       "industrial"),
-    ("landuse",  "farmland",     "agricultural"),
-    ("landuse",  "farmyard",     "agricultural"),
+    ("man_made", "chimney", "industrial"),
+    ("power", "plant", "industrial"),
+    ("power", "generator", "industrial"),
+    ("amenity", "bus_station", "vehicular"),
+    ("amenity", "fuel", "vehicular"),
+    ("landuse", "landfill", "industrial"),
+    ("landuse", "quarry", "industrial"),
+    ("landuse", "farmland", "agricultural"),
+    ("landuse", "farmyard", "agricultural"),
 ]
 
 
@@ -59,12 +59,7 @@ def _osm_type(tags: dict) -> str:
 
 
 def _osm_name(tags: dict, fallback: str) -> str:
-    return (
-        tags.get("name")
-        or tags.get("operator")
-        or tags.get("brand")
-        or fallback
-    )
+    return tags.get("name") or tags.get("operator") or tags.get("brand") or fallback
 
 
 async def fetch_emission_sources(

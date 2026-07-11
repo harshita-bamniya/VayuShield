@@ -81,10 +81,34 @@ async def seed_city_emission_sources(db: AsyncSession, city_id: str) -> int:
 
     # Four realistic sources spread around the city centre
     sources = [
-        {"name": f"{city.name} Industrial Zone",      "type": "industrial",    "permit_status": "active",  "dlat":  0.04, "dlon":  0.06},
-        {"name": f"{city.name} Central Bus Depot",    "type": "vehicular",     "permit_status": "active",  "dlat": -0.02, "dlon":  0.03},
-        {"name": f"{city.name} Construction Site A",  "type": "construction",  "permit_status": "pending", "dlat":  0.03, "dlon": -0.04},
-        {"name": f"{city.name} Agricultural Burn Zone","type": "agricultural",  "permit_status": "expired", "dlat": -0.05, "dlon": -0.02},
+        {
+            "name": f"{city.name} Industrial Zone",
+            "type": "industrial",
+            "permit_status": "active",
+            "dlat": 0.04,
+            "dlon": 0.06,
+        },
+        {
+            "name": f"{city.name} Central Bus Depot",
+            "type": "vehicular",
+            "permit_status": "active",
+            "dlat": -0.02,
+            "dlon": 0.03,
+        },
+        {
+            "name": f"{city.name} Construction Site A",
+            "type": "construction",
+            "permit_status": "pending",
+            "dlat": 0.03,
+            "dlon": -0.04,
+        },
+        {
+            "name": f"{city.name} Agricultural Burn Zone",
+            "type": "agricultural",
+            "permit_status": "expired",
+            "dlat": -0.05,
+            "dlon": -0.02,
+        },
     ]
     count = 0
     for s in sources:
@@ -223,9 +247,7 @@ async def list_emission_sources(
     )
 
 
-async def discover_and_import_emission_sources(
-    db: AsyncSession, city_id: str
-) -> dict:
+async def discover_and_import_emission_sources(db: AsyncSession, city_id: str) -> dict:
     """Query OSM Overpass for real emission sources near the city and import new ones."""
     from app.modules.ingestion.connectors.osm_sources import fetch_emission_sources
 
@@ -265,6 +287,7 @@ async def discover_and_import_emission_sources(
 
     # Re-rank enforcement queue with new sources
     import asyncio
+
     if imported > 0:
         asyncio.create_task(_auto_rank_enforcement(city_id))
 
@@ -287,6 +310,7 @@ async def create_emission_source(
     )
     # Auto-rank enforcement queue so new source appears immediately
     import asyncio
+
     asyncio.create_task(_auto_rank_enforcement(city_id))
     return EmissionSourceOut.model_validate(source)
 
@@ -295,6 +319,7 @@ async def _auto_rank_enforcement(city_id: str) -> None:
     from app.core.database import AsyncSessionLocal
     from app.core.logging import logger
     from app.modules.enforcement.service import rank_queue
+
     try:
         async with AsyncSessionLocal() as db:
             await rank_queue(db, city_id)

@@ -190,8 +190,14 @@ def _chemical_fingerprint(
 
     # If we have almost no data, return a neutral fallback
     if data_points == 0:
-        return {"vehicular": 0.40, "industrial": 0.25, "construction": 0.15,
-                "agricultural": 0.12, "fire": 0.0, "other": 0.08}
+        return {
+            "vehicular": 0.40,
+            "industrial": 0.25,
+            "construction": 0.15,
+            "agricultural": 0.12,
+            "fire": 0.0,
+            "other": 0.08,
+        }
 
     return scores
 
@@ -230,8 +236,13 @@ def _dispersion_scores(
         type_weights["fire"] = type_weights.get("fire", 0.0) + weight
 
     if not type_weights:
-        type_weights = {"vehicular": 0.40, "industrial": 0.25, "construction": 0.15,
-                        "agricultural": 0.12, "other": 0.08}
+        type_weights = {
+            "vehicular": 0.40,
+            "industrial": 0.25,
+            "construction": 0.15,
+            "agricultural": 0.12,
+            "other": 0.08,
+        }
 
     return type_weights
 
@@ -247,6 +258,7 @@ def _combine_scores(
     dispersion: dict[str, float],
 ) -> dict[str, float]:
     """Normalise each stage to [0,1] then blend with fixed weights."""
+
     def _normalise(d: dict[str, float]) -> dict[str, float]:
         total = sum(d.values()) or 1.0
         return {k: v / total for k, v in d.items()}
@@ -275,10 +287,10 @@ def _confidence_score(
     - Only PM data, no wind → ~0.45
     """
     score = 0.0
-    score += min(data_points / 6.0, 1.0) * 0.40   # pollutant completeness
+    score += min(data_points / 6.0, 1.0) * 0.40  # pollutant completeness
     score += min(source_count / 4.0, 1.0) * 0.30  # spatial source coverage
-    score += 0.20 if has_wind else 0.0              # wind data
-    score += min(fire_count / 2.0, 1.0) * 0.10    # fire data quality
+    score += 0.20 if has_wind else 0.0  # wind data
+    score += min(fire_count / 2.0, 1.0) * 0.10  # fire data quality
     return round(min(score, 1.0), 3)
 
 
@@ -338,15 +350,14 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     current_aqi: int | None = p[0] if p else None
     avg_pm25 = float(p[1]) if p and p[1] is not None else None
     avg_pm10 = float(p[2]) if p and p[2] is not None else None
-    avg_no2  = float(p[3]) if p and p[3] is not None else None
-    avg_so2  = float(p[4]) if p and p[4] is not None else None
-    avg_co   = float(p[5]) if p and p[5] is not None else None
-    avg_o3   = float(p[6]) if p and p[6] is not None else None
+    avg_no2 = float(p[3]) if p and p[3] is not None else None
+    avg_so2 = float(p[4]) if p and p[4] is not None else None
+    avg_co = float(p[5]) if p and p[5] is not None else None
+    avg_o3 = float(p[6]) if p and p[6] is not None else None
 
     # Count how many pollutants have valid readings
     data_points = sum(
-        1 for v in [avg_pm25, avg_pm10, avg_no2, avg_so2, avg_co, avg_o3]
-        if v is not None
+        1 for v in [avg_pm25, avg_pm10, avg_no2, avg_so2, avg_co, avg_o3] if v is not None
     )
 
     # 2. Latest weather reading
@@ -361,7 +372,7 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     )
     wr = weather_result.fetchone()
     wind_speed: float | None = float(wr[0]) if wr and wr[0] is not None else None
-    wind_dir: float | None   = float(wr[1]) if wr and wr[1] is not None else None
+    wind_dir: float | None = float(wr[1]) if wr and wr[1] is not None else None
 
     # 3. City receptor centroid
     centroid = await _get_city_centroid(db, city_id)
@@ -403,8 +414,12 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
 
     # 6. Stage 1 — Chemical fingerprint
     fp_scores = _chemical_fingerprint(
-        pm25=avg_pm25, pm10=avg_pm10, no2=avg_no2,
-        so2=avg_so2, co=avg_co, o3=avg_o3,
+        pm25=avg_pm25,
+        pm10=avg_pm10,
+        no2=avg_no2,
+        so2=avg_so2,
+        co=avg_co,
+        o3=avg_o3,
         fire_count=len(fire_hotspots),
     )
 
@@ -500,21 +515,28 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
 
 
 async def _evaluate_alerts(
-    db: AsyncSession, city_id: str, aqi: int, dominant_source: str | None, now: datetime,
+    db: AsyncSession,
+    city_id: str,
+    aqi: int,
+    dominant_source: str | None,
+    now: datetime,
 ) -> None:
     for threshold, level in ALERT_THRESHOLDS:
         existing = await repo.get_active_alert_for_threshold(db, city_id, threshold)
         if aqi >= threshold:
             if existing is None:
-                await repo.create_alert(db, {
-                    "city_id": city_id,
-                    "alert_level": level,
-                    "threshold": threshold,
-                    "aqi_value": aqi,
-                    "dominant_source": dominant_source,
-                    "triggered_at": now,
-                    "is_active": True,
-                })
+                await repo.create_alert(
+                    db,
+                    {
+                        "city_id": city_id,
+                        "alert_level": level,
+                        "threshold": threshold,
+                        "aqi_value": aqi,
+                        "dominant_source": dominant_source,
+                        "triggered_at": now,
+                        "is_active": True,
+                    },
+                )
         else:
             if existing is not None:
                 await repo.resolve_alert(db, existing, now)
@@ -535,7 +557,11 @@ async def get_latest_attribution_ranking(
         "other": attr.other_pct or 0,
     }
     ranked = sorted(
-        [RankedSource(source_type=k, contribution_pct=v, rank=0) for k, v in breakdown.items() if v > 0],
+        [
+            RankedSource(source_type=k, contribution_pct=v, rank=0)
+            for k, v in breakdown.items()
+            if v > 0
+        ],
         key=lambda x: x.contribution_pct,
         reverse=True,
     )

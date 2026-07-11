@@ -159,6 +159,7 @@ async def create_station(db: AsyncSession, city_id: str, body: StationCreate) ->
 
     # Auto-trigger ingestion + forecast so the city shows live data immediately
     import asyncio
+
     asyncio.create_task(_bootstrap_city_data(city_id))
 
     return StationOut.model_validate(station)
@@ -191,9 +192,9 @@ async def _bootstrap_city_data(city_id: str) -> None:
     """Run poll → weather → forecast → enforcement rank in the background after station creation."""
     from app.core.database import AsyncSessionLocal
     from app.core.logging import logger
-    from app.modules.ingestion.service import poll_city_stations, poll_weather
-    from app.modules.forecasting.service import run_forecast
     from app.modules.enforcement.service import rank_queue
+    from app.modules.forecasting.service import run_forecast
+    from app.modules.ingestion.service import poll_city_stations, poll_weather
 
     try:
         async with AsyncSessionLocal() as db:
@@ -208,4 +209,5 @@ async def _bootstrap_city_data(city_id: str) -> None:
         logger.info("Auto-bootstrap complete", city_id=city_id)
     except Exception as exc:
         from app.core.logging import logger
+
         logger.warning("Auto-bootstrap failed", city_id=city_id, error=str(exc))

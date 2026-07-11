@@ -314,13 +314,17 @@ async def create_ward(
 
 
 async def delete_ward(db: AsyncSession, ward_id: str) -> bool:
-    result = await db.execute(text("DELETE FROM wards WHERE id = :id RETURNING id"), {"id": ward_id})
+    result = await db.execute(
+        text("DELETE FROM wards WHERE id = :id RETURNING id"), {"id": ward_id}
+    )
     await db.commit()
     return result.rowcount > 0
 
 
 async def delete_station(db: AsyncSession, station_id: str) -> bool:
-    result = await db.execute(text("DELETE FROM stations WHERE id = :id RETURNING id"), {"id": station_id})
+    result = await db.execute(
+        text("DELETE FROM stations WHERE id = :id RETURNING id"), {"id": station_id}
+    )
     await db.commit()
     return result.rowcount > 0
 
