@@ -40,6 +40,7 @@ function hotspotRadius(frp: number | null): number {
 
 export default function WardMap({ wards, onWardClick, fireHotspots = [], center = [28.62, 77.21] }: WardMapProps) {
   const wardsWithGeom = wards.filter((w) => w.geometry);
+  const wardsWithoutGeom = wards.filter((w) => !w.geometry);
 
   return (
     <MapContainer
@@ -68,6 +69,36 @@ export default function WardMap({ wards, onWardClick, fireHotspots = [], center 
           }}
         />
       ))}
+      {/* Fallback: wards without GeoJSON get a colored circle at the map center offset */}
+      {wardsWithoutGeom.map((ward, i) => {
+        const offset = 0.04 * (i - (wardsWithoutGeom.length - 1) / 2);
+        const pos: [number, number] = [center[0] + offset, center[1] + offset];
+        return (
+          <CircleMarker
+            key={ward.id}
+            center={pos}
+            radius={18}
+            pathOptions={{
+              fillColor: aqiFillColor(ward.avg_aqi),
+              fillOpacity: 0.75,
+              color: "#1e293b",
+              weight: 2,
+            }}
+            eventHandlers={onWardClick ? { click: () => onWardClick(ward.id) } : {}}
+          >
+            <Popup>
+              <div style={{ minWidth: 140 }}>
+                <strong>{ward.name}</strong>
+                <br />
+                AQI: {ward.avg_aqi !== null ? ward.avg_aqi : "No data"}
+                {ward.aqi_category ? ` (${ward.aqi_category})` : ""}
+                <br />
+                <span style={{ fontSize: 11, color: "#64748b" }}>No boundary data</span>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
       {fireHotspots.map((h) => (
         <CircleMarker
           key={h.id}

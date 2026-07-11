@@ -10,6 +10,7 @@ from app.modules.cities.schemas import (
     CityOut,
     StationCreate,
     StationOut,
+    StationUpdate,
     WardCreate,
     WardDetailOut,
     WardOut,
@@ -41,6 +42,15 @@ async def create_city(
 ):
     city = await service.create_city(db, body)
     return ApiEnvelope(data=city)
+
+
+@router.delete("/cities/{city_id}", status_code=204)
+async def delete_city(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin")),
+):
+    await service.delete_city(db, city_id)
 
 
 @router.get("/cities/{city_id}", response_model=ApiEnvelope[CityOut])
@@ -79,6 +89,16 @@ async def get_ward(
     return ApiEnvelope(data=ward)
 
 
+@router.delete("/cities/{city_id}/wards/{ward_id}", status_code=204)
+async def delete_ward(
+    city_id: str,
+    ward_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin", "admin")),
+):
+    await service.delete_ward(db, city_id, ward_id)
+
+
 @router.post("/cities/{city_id}/wards", response_model=ApiEnvelope[WardOut], status_code=201)
 async def create_ward(
     city_id: str,
@@ -103,6 +123,28 @@ async def list_stations(
 ):
     stations, meta = await service.list_stations(db, city_id, page, limit)
     return ApiEnvelope(data=stations, meta=meta)
+
+
+@router.delete("/cities/{city_id}/stations/{station_id}", status_code=204)
+async def delete_station(
+    city_id: str,
+    station_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin", "admin")),
+):
+    await service.delete_station(db, city_id, station_id)
+
+
+@router.patch("/cities/{city_id}/stations/{station_id}", response_model=ApiEnvelope[StationOut])
+async def update_station(
+    city_id: str,
+    station_id: str,
+    body: StationUpdate,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin", "admin")),
+):
+    station = await service.update_station(db, city_id, station_id, body)
+    return ApiEnvelope(data=station)
 
 
 @router.post("/cities/{city_id}/stations", response_model=ApiEnvelope[StationOut], status_code=201)

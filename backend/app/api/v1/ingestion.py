@@ -67,6 +67,32 @@ async def trigger_poll(
     return ApiEnvelope(data={"inserted": inserted})
 
 
+@router.post("/cities/{city_id}/emission-sources/seed", response_model=ApiEnvelope[dict])
+async def seed_emission_sources(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin")),
+):
+    """Seed 4 realistic mock emission sources for a new city (skips if already seeded)."""
+    count = await service.seed_city_emission_sources(db, city_id)
+    return ApiEnvelope(data={"seeded": count})
+
+
+@router.post("/cities/{city_id}/readings/seed-history", response_model=ApiEnvelope[dict])
+async def seed_history(
+    city_id: str,
+    days: int = Query(7, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin")),
+):
+    """Seed N days of hourly mock readings for all active stations in a city.
+
+    Used to bootstrap new cities so the forecast model has enough history to work from.
+    """
+    inserted = await service.seed_city_history(db, city_id, days)
+    return ApiEnvelope(data={"inserted": inserted})
+
+
 # ── Weather ───────────────────────────────────────────────────────────────────
 
 
@@ -127,6 +153,20 @@ async def list_emission_sources(
 ):
     sources, meta = await service.list_emission_sources(db, city_id, page, limit)
     return ApiEnvelope(data=sources, meta=meta)
+
+
+@router.post(
+    "/cities/{city_id}/emission-sources/discover",
+    response_model=ApiEnvelope[dict],
+)
+async def discover_emission_sources(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_role("sysadmin", "admin")),
+):
+    """Auto-discover emission sources from OpenStreetMap and insert new ones."""
+    result = await service.discover_and_import_emission_sources(db, city_id)
+    return ApiEnvelope(data=result)
 
 
 @router.post(

@@ -40,6 +40,8 @@ services:
       SEED_ADMIN_EMAIL: admin@vayushield.local
       SEED_ADMIN_PASSWORD: Admin@123
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
+      CPCB_API_KEY: ${CPCB_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -56,6 +58,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    environment:
+      VITE_API_TARGET: http://backend:8000
     ports:
       - "5173:5173"
     depends_on:

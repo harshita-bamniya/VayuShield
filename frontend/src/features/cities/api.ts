@@ -93,3 +93,60 @@ export async function createStation(cityId: string, payload: CreateStationPayloa
   const resp = await client.post<{ data: StationOut }>(`/cities/${cityId}/stations`, payload);
   return resp.data.data!;
 }
+
+export interface UpdateStationPayload {
+  ward_id?: string | null;
+  name?: string;
+  is_active?: boolean;
+}
+
+export async function updateStation(
+  cityId: string,
+  stationId: string,
+  payload: UpdateStationPayload
+): Promise<StationOut> {
+  const resp = await client.patch<{ data: StationOut }>(
+    `/cities/${cityId}/stations/${stationId}`,
+    payload
+  );
+  return resp.data.data!;
+}
+
+export async function deleteCity(cityId: string): Promise<void> {
+  await client.delete(`/cities/${cityId}`);
+}
+
+export async function deleteWard(cityId: string, wardId: string): Promise<void> {
+  await client.delete(`/cities/${cityId}/wards/${wardId}`);
+}
+
+export async function deleteStation(cityId: string, stationId: string): Promise<void> {
+  await client.delete(`/cities/${cityId}/stations/${stationId}`);
+}
+
+export interface DiscoverSourcesResult {
+  discovered: number;
+  imported: number;
+  skipped: number;
+  error?: string | null;
+}
+
+export async function discoverEmissionSources(cityId: string): Promise<DiscoverSourcesResult> {
+  const resp = await client.post<{ data: DiscoverSourcesResult }>(
+    `/cities/${cityId}/emission-sources/discover`
+  );
+  return resp.data.data!;
+}
+
+export async function initializeCityData(cityId: string): Promise<{ readings: number }> {
+  // 1. Poll real CPCB station data + weather in parallel
+  const [readingsResp] = await Promise.all([
+    client.post<{ data: { inserted: number } }>(`/cities/${cityId}/readings/poll`),
+    client.post(`/cities/${cityId}/weather/poll`),
+  ]);
+  // 2. Run forecast from fresh readings
+  await client.post(`/cities/${cityId}/forecast/run`);
+  // 3. Re-rank enforcement queue
+  await client.post(`/cities/${cityId}/enforcement/rank`);
+  return { readings: readingsResp.data.data?.inserted ?? 0 };
+}

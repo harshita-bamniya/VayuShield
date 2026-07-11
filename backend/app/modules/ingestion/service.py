@@ -63,6 +63,71 @@ async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     return await repo.bulk_insert_readings(db, readings)
 
 
+async def seed_city_emission_sources(db: AsyncSession, city_id: str) -> int:
+    """Seed realistic mock emission sources for a new city if none exist yet."""
+    from app.modules.cities.repository import get_city_by_id as _get_city
+
+    city = await _get_city(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+
+    existing = await repo.get_emission_sources(db, city_id, page=1, limit=1)
+    if existing[1] > 0:
+        return 0  # already seeded
+
+    cfg = city.config_json or {}
+    lat = cfg.get("lat", 28.61)
+    lon = cfg.get("lon", 77.21)
+
+    # Four realistic sources spread around the city centre
+    sources = [
+        {"name": f"{city.name} Industrial Zone",      "type": "industrial",    "permit_status": "active",  "dlat":  0.04, "dlon":  0.06},
+        {"name": f"{city.name} Central Bus Depot",    "type": "vehicular",     "permit_status": "active",  "dlat": -0.02, "dlon":  0.03},
+        {"name": f"{city.name} Construction Site A",  "type": "construction",  "permit_status": "pending", "dlat":  0.03, "dlon": -0.04},
+        {"name": f"{city.name} Agricultural Burn Zone","type": "agricultural",  "permit_status": "expired", "dlat": -0.05, "dlon": -0.02},
+    ]
+    count = 0
+    for s in sources:
+        await repo.create_emission_source(
+            db,
+            city_id=city_id,
+            name=s["name"],
+            type=s["type"],
+            geometry={"type": "Point", "coordinates": [lon + s["dlon"], lat + s["dlat"]]},
+            permit_status=s["permit_status"],
+        )
+        count += 1
+    return count
+
+
+async def seed_city_history(db: AsyncSession, city_id: str, days: int = 7) -> int:
+    """Seed N days of hourly mock readings for all active stations in a city.
+
+    Skips stations that already have readings in the same window to avoid duplicates.
+    """
+    from datetime import timedelta
+
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+
+    stations, _ = await get_stations_for_city(db, city_id, page=1, limit=100)
+    active = [s for s in stations if s.get("is_active")]
+    if not active:
+        return 0
+
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    start = now - timedelta(days=days)
+
+    all_readings: list[StationReadingIn] = []
+    for station in active:
+        all_readings.extend(
+            caaqms.generate_historical_readings(station["id"], start, now, interval_hours=1)
+        )
+
+    return await repo.bulk_insert_readings(db, all_readings)
+
+
 async def get_latest_readings(db: AsyncSession, city_id: str) -> list[LatestReadingOut]:
     city = await get_city_by_id(db, city_id)
     if not city:
@@ -158,6 +223,54 @@ async def list_emission_sources(
     )
 
 
+async def discover_and_import_emission_sources(
+    db: AsyncSession, city_id: str
+) -> dict:
+    """Query OSM Overpass for real emission sources near the city and import new ones."""
+    from app.modules.ingestion.connectors.osm_sources import fetch_emission_sources
+
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+
+    cfg = city.config_json or {}
+    lat = cfg.get("lat", 28.61)
+    lon = cfg.get("lon", 77.21)
+
+    candidates, error = await fetch_emission_sources(lat, lon, city.name)
+
+    if error:
+        return {"discovered": 0, "imported": 0, "skipped": 0, "error": error}
+
+    # Get existing source names to avoid duplicates
+    existing_sources, _ = await repo.get_emission_sources(db, city_id, page=1, limit=200)
+    existing_names = {s["name"].lower() for s in existing_sources}
+
+    imported = 0
+    skipped = 0
+    for candidate in candidates:
+        if candidate["name"].lower() in existing_names:
+            skipped += 1
+            continue
+        await repo.create_emission_source(
+            db,
+            city_id=city_id,
+            name=candidate["name"],
+            type=candidate["type"],
+            geometry=candidate["geometry"],
+            permit_status=candidate["permit_status"],
+        )
+        existing_names.add(candidate["name"].lower())
+        imported += 1
+
+    # Re-rank enforcement queue with new sources
+    import asyncio
+    if imported > 0:
+        asyncio.create_task(_auto_rank_enforcement(city_id))
+
+    return {"discovered": len(candidates), "imported": imported, "skipped": skipped, "error": None}
+
+
 async def create_emission_source(
     db: AsyncSession, city_id: str, body: EmissionSourceCreate
 ) -> EmissionSourceOut:
@@ -172,4 +285,19 @@ async def create_emission_source(
         geometry=body.geometry,
         permit_status=body.permit_status,
     )
+    # Auto-rank enforcement queue so new source appears immediately
+    import asyncio
+    asyncio.create_task(_auto_rank_enforcement(city_id))
     return EmissionSourceOut.model_validate(source)
+
+
+async def _auto_rank_enforcement(city_id: str) -> None:
+    from app.core.database import AsyncSessionLocal
+    from app.core.logging import logger
+    from app.modules.enforcement.service import rank_queue
+    try:
+        async with AsyncSessionLocal() as db:
+            await rank_queue(db, city_id)
+        logger.info("Auto enforcement rank complete", city_id=city_id)
+    except Exception as exc:
+        logger.warning("Auto enforcement rank failed", city_id=city_id, error=str(exc))

@@ -112,6 +112,12 @@ class StationCreate(BaseModel):
         return validate_geojson_geometry(v)
 
 
+class StationUpdate(BaseModel):
+    ward_id: str | None = None
+    name: str | None = None
+    is_active: bool | None = None
+
+
 class StationOut(BaseModel):
     id: str
     city_id: str

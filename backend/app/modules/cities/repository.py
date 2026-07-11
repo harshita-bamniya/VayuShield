@@ -27,6 +27,15 @@ async def get_city_by_id(db: AsyncSession, city_id: str) -> City | None:
     return result.scalar_one_or_none()
 
 
+async def delete_city(db: AsyncSession, city_id: str) -> bool:
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        return False
+    await db.delete(city)
+    await db.commit()
+    return True
+
+
 async def create_city(
     db: AsyncSession, *, name: str, state: str, timezone: str, config_json: dict[str, Any]
 ) -> City:
@@ -304,6 +313,18 @@ async def create_ward(
     return ward  # type: ignore[return-value]
 
 
+async def delete_ward(db: AsyncSession, ward_id: str) -> bool:
+    result = await db.execute(text("DELETE FROM wards WHERE id = :id RETURNING id"), {"id": ward_id})
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def delete_station(db: AsyncSession, station_id: str) -> bool:
+    result = await db.execute(text("DELETE FROM stations WHERE id = :id RETURNING id"), {"id": station_id})
+    await db.commit()
+    return result.rowcount > 0
+
+
 # ── Stations ──────────────────────────────────────────────────────────────────
 
 
@@ -404,3 +425,41 @@ async def create_station(
     )
     row = rows.first()
     return dict(row._mapping) if row else {}
+
+
+async def update_station(
+    db: AsyncSession,
+    *,
+    station_id: str,
+    ward_id: str | None,
+    name: str,
+    is_active: bool,
+) -> dict | None:
+    await db.execute(
+        text(
+            """
+            UPDATE stations
+               SET ward_id   = :ward_id,
+                   name      = :name,
+                   is_active = :is_active,
+                   updated_at = NOW()
+             WHERE id = :id
+            """
+        ),
+        {"id": station_id, "ward_id": ward_id, "name": name, "is_active": is_active},
+    )
+    await db.commit()
+    rows = await db.execute(
+        select(
+            Station.id,
+            Station.city_id,
+            Station.ward_id,
+            Station.external_station_code,
+            Station.name,
+            Station.is_active,
+            Station.created_at,
+            func.ST_AsGeoJSON(Station.geometry).label("geometry"),
+        ).where(Station.id == station_id)
+    )
+    row = rows.first()
+    return dict(row._mapping) if row else None
