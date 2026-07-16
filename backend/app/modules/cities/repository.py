@@ -234,7 +234,7 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
     if not ward:
         return None
 
-    # Latest station readings for stations assigned to this ward
+    # Latest station readings for stations assigned to this ward (full pollutant set)
     reading_rows = await db.execute(
         text(
             """
@@ -245,6 +245,10 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
                 sr.ts,
                 sr.pm25,
                 sr.pm10,
+                sr.no2,
+                sr.so2,
+                sr.co,
+                sr.o3,
                 sr.aqi,
                 sr.is_stale
             FROM stations s
@@ -264,24 +268,49 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
     valid_aqis = [r["aqi"] for r in readings if r.get("aqi") is not None]
     avg_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else None
 
-    # Latest city-level attribution breakdown
-    attr_row = await db.execute(
-        text(
-            """
-            SELECT dominant_source, vehicular_pct, industrial_pct, construction_pct,
-                   agricultural_pct, fire_pct, other_pct
-            FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
-            """
-        ),
-        {"city_id": ward["city_id"]},
-    )
-    attr = attr_row.first()
+    # Ward-specific attribution — computed from this ward's own pollutant readings
+    from app.modules.attribution.service import _chemical_fingerprint
+
+    def _normalise(d: dict) -> dict:
+        total = sum(d.values()) or 1.0
+        return {k: v / total for k, v in d.items()}
+
+    def _avg(key: str) -> float | None:
+        vals = [r[key] for r in readings if r.get(key) is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    ward_pm25 = _avg("pm25")
+    ward_pm10 = _avg("pm10")
+    ward_no2  = _avg("no2")
+    ward_so2  = _avg("so2")
+    ward_co   = _avg("co")
+    ward_o3   = _avg("o3")
+
     attribution_breakdown: dict[str, Any] = {}
     dominant_source = None
-    if attr:
-        a = dict(attr._mapping)
-        dominant_source = a.pop("dominant_source", None)
-        attribution_breakdown = {k: v for k, v in a.items() if v is not None}
+    if any(v is not None for v in [ward_pm25, ward_pm10, ward_no2, ward_so2, ward_co, ward_o3]):
+        fp = _chemical_fingerprint(ward_pm25, ward_pm10, ward_no2, ward_so2, ward_co, ward_o3)
+        norm = _normalise(fp)
+        pct_map = {k: round(v * 100, 1) for k, v in norm.items() if v > 0}
+        dominant_source = max(pct_map, key=lambda k: pct_map[k]) if pct_map else None
+        attribution_breakdown = {f"{k}_pct": v for k, v in pct_map.items()}
+    else:
+        # Fall back to city-level attribution if ward has no pollutant data
+        attr_row = await db.execute(
+            text(
+                """
+                SELECT dominant_source, vehicular_pct, industrial_pct, construction_pct,
+                       agricultural_pct, fire_pct, other_pct
+                FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
+                """
+            ),
+            {"city_id": ward["city_id"]},
+        )
+        attr = attr_row.first()
+        if attr:
+            a = dict(attr._mapping)
+            dominant_source = a.pop("dominant_source", None)
+            attribution_breakdown = {k: v for k, v in a.items() if v is not None}
 
     # Advisory count for this specific ward
     count_row = await db.execute(

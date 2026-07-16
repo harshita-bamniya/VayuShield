@@ -531,6 +531,7 @@ function AddWardForm({ cityId, cityName, onCreated }: { cityId: string; cityName
     mutationFn: (p: CreateWardPayload) => createWard(cityId, p),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-wards", cityId] });
+      qc.invalidateQueries({ queryKey: ["admin-stations", cityId] });
       onCreated();
       setSelectedPreset("");
       setName("");
@@ -1297,50 +1298,27 @@ function CityRow({ city }: { city: CityWithCounts }) {
                       <WardDeleteButton ward={w} cityId={city.id} onDeleted={() => { wardsQ.refetch(); stationsQ.refetch(); if (isOpen) setOpenWardId(null); }} />
                     </div>
 
-                    {/* Ward expanded: stations list + add station */}
+                    {/* Ward expanded: auto-assigned station info */}
                     {isOpen && (
-                      <div className="border-t border-slate-600 bg-slate-800/60 px-3 py-3">
+                      <div className="border-t border-slate-600 bg-slate-800/60 px-3 py-2.5">
+                        <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide font-medium">CAAQMS Station</p>
                         {wardStations.length === 0 ? (
-                          <p className="text-xs text-slate-500 italic mb-2">No stations in this ward yet.</p>
+                          <p className="text-xs text-amber-400">
+                            No station assigned yet — station is auto-assigned when the ward is saved with a boundary.
+                          </p>
                         ) : (
-                          <table className="w-full text-sm mb-3">
-                            <thead>
-                              <tr className="text-left text-xs text-slate-500 border-b border-slate-700">
-                                <th className="pb-1 font-medium">Name</th>
-                                <th className="pb-1 font-medium">Code</th>
-                                <th className="pb-1 font-medium">Status</th>
-                                <th className="pb-1 font-medium"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {wardStations.map((s) => (
-                                <StationRow
-                                  key={s.id}
-                                  station={s}
-                                  cityId={city.id}
-                                  wards={wardsQ.data ?? []}
-                                  onUpdated={() => stationsQ.refetch()}
-                                />
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                        {isAddingStation ? (
-                          <AddStationForm
-                            cityId={city.id}
-                            cityName={city.name}
-                            wards={wardsQ.data ?? []}
-                            defaultWardId={w.id}
-                            existingStations={stationsQ.data ?? []}
-                            onCreated={() => { setAddingStationForWard(null); stationsQ.refetch(); }}
-                          />
-                        ) : (
-                          <button
-                            onClick={() => setAddingStationForWard(w.id)}
-                            className="text-xs text-violet-400 hover:text-violet-300 font-medium"
-                          >
-                            + Add Station to {w.name}
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            {wardStations.map((s) => (
+                              <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                <span className="text-sm text-white font-medium">{s.name}</span>
+                                <span className="text-xs text-slate-400 font-mono">{s.external_station_code}</span>
+                                <span className={`text-xs ${s.is_active ? "text-emerald-400" : "text-slate-500"}`}>
+                                  {s.is_active ? "Active" : "Inactive"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     )}

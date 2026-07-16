@@ -90,7 +90,7 @@ async def public_city_summary(
     attr = attr_row.fetchone()
     dominant_source = attr[0] if attr else None
 
-    # Latest advisories (EN + HI)
+    # Latest advisories (EN + HI) — match current AQI level, fall back to most recent
     adv_row = await db.execute(
         text(
             """
@@ -98,11 +98,12 @@ async def public_city_summary(
             FROM advisories
             WHERE city_id = :city_id
               AND language IN ('en', 'hi')
+              AND aqi_level = :aqi_level
             ORDER BY created_at DESC
             LIMIT 10
             """
         ),
-        {"city_id": city_id},
+        {"city_id": city_id, "aqi_level": aqi_level},
     )
     adv_rows = adv_row.fetchall()
 
