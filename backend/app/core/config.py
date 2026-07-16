@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Ingestion (Module 03)
     FIRMS_MAP_KEY: str = ""  # NASA FIRMS — https://firms.modaps.eosdis.nasa.gov/api/
     CPCB_API_KEY: str = ""  # data.gov.in CPCB real-time AQ — https://api.data.gov.in/
+    WAQI_TOKEN: str = ""   # aqicn.org WAQI — https://aqicn.org/data-platform/token/
 
 
 settings = Settings()

@@ -28,9 +28,13 @@ from app.schemas.common import PaginationMeta
 async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     """Pull latest readings from all active stations in a city. Returns total inserted.
 
-    Tries the CPCB data.gov.in API first (bulk fetch for the city); falls back to
-    mock data per-station when the API is unavailable or a station is unmatched.
+    Strategy:
+      1. Try WAQI per-station (requires WAQI_TOKEN) — most reliable.
+      2. Fall back to data.gov.in CPCB bulk (requires CPCB_API_KEY) — government server.
+      3. If neither works, no reading stored for that station.
     """
+    import asyncio
+
     city = await get_city_by_id(db, city_id)
     stations, _ = await get_stations_for_city(db, city_id, page=1, limit=100)
     active = [s for s in stations if s.get("is_active")]
@@ -38,27 +42,45 @@ async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
         return 0
 
     now = datetime.now(UTC)
-
-    # Bulk fetch from CPCB (returns {} when key not set or call fails)
     city_name = city.name if city else ""
-    cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
 
-    readings: list[StationReadingIn] = []
-    for station in active:
-        reading = caaqms.match_station_reading(
-            cpcb_data,
-            station_code=station["external_station_code"],
-            station_id=station["id"],
+    # Try WAQI per-station first (concurrent)
+    waqi_tasks = [
+        caaqms.fetch_station_reading_waqi(
+            station_code=s["external_station_code"],
+            station_id=s["id"],
             ts=now,
         )
-        if reading is None:
-            # Fall back to mock
-            reading = await caaqms.fetch_station_readings(
+        for s in active
+    ]
+    waqi_results = await asyncio.gather(*waqi_tasks, return_exceptions=True)
+
+    readings: list[StationReadingIn] = []
+    stations_needing_cpcb: list[dict] = []
+
+    for station, result in zip(active, waqi_results):
+        if isinstance(result, StationReadingIn):
+            readings.append(result)
+        else:
+            stations_needing_cpcb.append(station)
+
+    # For any station WAQI couldn't serve, try CPCB bulk
+    if stations_needing_cpcb:
+        cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
+        for station in stations_needing_cpcb:
+            reading = caaqms.match_station_reading(
+                cpcb_data,
                 station_code=station["external_station_code"],
                 station_id=station["id"],
                 ts=now,
             )
-        readings.append(reading)
+            if reading is not None:
+                readings.append(reading)
+
+    if not readings:
+        from app.core.logging import logger
+        logger.warning("No readings fetched — both WAQI and CPCB unavailable", city_id=city_id)
+        return 0
 
     return await repo.bulk_insert_readings(db, readings)
 

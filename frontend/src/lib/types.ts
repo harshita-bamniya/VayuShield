@@ -21,7 +21,7 @@ export interface City {
 
 export interface Ward {
   id: string;
-  cityId: string;
+  city_id: string;
   name: string;
   population: number;
 }
@@ -68,10 +68,10 @@ export interface Attribution {
 }
 
 export interface ForecastPoint {
-  forecastForTs: string;
-  predictedAqi: number;
-  predictedPm25: number;
-  modelVersion: string;
+  forecast_for_ts: string;
+  predicted_aqi: number;
+  predicted_pm25: number | null;
+  model_version: string;
 }
 
 export type EnforcementStatus = "pending" | "dispatched" | "completed";

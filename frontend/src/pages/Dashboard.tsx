@@ -12,6 +12,21 @@ import { fetchWardsWithAqi } from "@/features/wards/api";
 import WardMap from "@/components/WardMap";
 import client from "@/lib/apiClient";
 
+interface AqiAlert {
+  id: string;
+  alert_level: string;
+  aqi_value: number;
+  dominant_source: string | null;
+  triggered_at: string;
+  resolved_at: string | null;
+  is_active: boolean;
+}
+
+async function fetchAlerts(cityId: string): Promise<AqiAlert[]> {
+  const resp = await client.get<{ data: AqiAlert[] }>(`/cities/${cityId}/alerts?limit=5`);
+  return resp.data.data ?? [];
+}
+
 interface AttributionResult {
   dominant_source: string | null;
   ranked_sources: { source_type: string; contribution_pct: number; rank: number }[];
@@ -22,7 +37,7 @@ interface AttributionResult {
 }
 
 async function fetchAttribution(cityId: string): Promise<AttributionResult> {
-  const resp = await client.get<{ data: AttributionResult }>(`/cities/${cityId}/attribution`);
+  const resp = await client.get<{ data: AttributionResult }>(`/cities/${cityId}/attribution?recompute=true`);
   return resp.data.data!;
 }
 
@@ -123,8 +138,15 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 10,
   });
 
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["alerts", selectedCityId],
+    queryFn: () => fetchAlerts(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 2,
+  });
+
   const displayCity = selectedCity;
-  const currentAqi = forecast?.points[0]?.predicted_aqi;
+  const currentAqi = attribution?.aqi ?? forecast?.points[0]?.predicted_aqi;
 
   // Map center: read from city config_json lat/lon, fall back to Delhi
   const mapCenter: [number, number] = (() => {
@@ -426,6 +448,62 @@ export default function Dashboard() {
                 peakAqi={forecast.peak_aqi}
               />
             ) : null}
+          </div>
+          {/* AQI Alerts */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-200">AQI Alerts</p>
+                <p className="text-xs text-slate-500 mt-0.5">Recent threshold breaches</p>
+              </div>
+              {alerts.some((a) => a.is_active) && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-1 rounded">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  Active
+                </span>
+              )}
+            </div>
+            {alerts.length === 0 ? (
+              <p className="text-sm text-slate-600 py-4 text-center">No recent alerts</p>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert) => {
+                  const levelColor =
+                    alert.alert_level === "critical" ? "text-red-400 bg-red-500/10 border-red-500/20"
+                    : alert.alert_level === "warning" ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
+                    : "text-yellow-400 bg-yellow-500/10 border-yellow-500/20";
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${levelColor}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">
+                          {alert.alert_level === "critical" ? "🚨" : "⚠️"}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold capitalize">{alert.alert_level} — AQI {alert.aqi_value}</p>
+                          <p className="text-xs opacity-70 mt-0.5">
+                            {alert.dominant_source ? `Source: ${alert.dominant_source} · ` : ""}
+                            {new Date(alert.triggered_at).toLocaleString("en-IN", {
+                              timeZone: "Asia/Kolkata",
+                              hour12: true,
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${alert.is_active ? "bg-red-500/20 text-red-300" : "bg-slate-700 text-slate-400"}`}>
+                        {alert.is_active ? "Active" : "Resolved"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </main>
       </div>

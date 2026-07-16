@@ -19,7 +19,7 @@ async def bulk_insert_readings(db: AsyncSession, readings: list[StationReadingIn
         return 0
     inserted = 0
     for r in readings:
-        aqi = compute_aqi(r.pm25, r.pm10)
+        aqi = r.aqi if r.aqi is not None else compute_aqi(r.pm25, r.pm10)
         await db.execute(
             text(
                 """
@@ -61,7 +61,7 @@ async def get_latest_readings_for_city(db: AsyncSession, city_id: str) -> list[d
                 sr.pm25,
                 sr.pm10,
                 sr.aqi,
-                sr.is_stale
+                COALESCE(sr.is_stale, false) AS is_stale
             FROM stations s
             LEFT JOIN station_readings sr ON sr.station_id = s.id
             WHERE s.city_id = :city_id AND s.is_active = true

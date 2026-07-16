@@ -14,40 +14,36 @@ import httpx
 
 from app.core.logging import logger
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+]
 
-# OSM tags → our emission source type
+# OSM tags → our emission source type (trimmed to highest-signal tags only)
 _TAG_RULES: list[tuple[str, str, str]] = [
-    # (key, value, our_type)
     ("landuse", "industrial", "industrial"),
     ("landuse", "construction", "construction"),
     ("man_made", "works", "industrial"),
-    ("man_made", "wastewater_plant", "industrial"),
-    ("man_made", "chimney", "industrial"),
     ("power", "plant", "industrial"),
-    ("power", "generator", "industrial"),
     ("amenity", "bus_station", "vehicular"),
-    ("amenity", "fuel", "vehicular"),
     ("landuse", "landfill", "industrial"),
     ("landuse", "quarry", "industrial"),
-    ("landuse", "farmland", "agricultural"),
-    ("landuse", "farmyard", "agricultural"),
 ]
 
 
 def _build_query(lat: float, lon: float, radius_m: int = 15000) -> str:
-    """Build an Overpass QL query for emission-relevant features around a point."""
+    """Build a compact Overpass QL query using a union of way filters only."""
     tag_filters = "\n  ".join(
-        f'node["{k}"="{v}"](around:{radius_m},{lat},{lon});'
-        f'\n  way["{k}"="{v}"](around:{radius_m},{lat},{lon});'
+        f'way["{k}"="{v}"](around:{radius_m},{lat},{lon});'
         for k, v, _ in _TAG_RULES
     )
     return f"""
-[out:json][timeout:25];
+[out:json][timeout:30];
 (
   {tag_filters}
 );
-out center tags;
+out center tags 50;
 """
 
 
@@ -75,19 +71,26 @@ async def fetch_emission_sources(
         "User-Agent": "VayuShield-AI/1.0 (air quality monitoring platform)",
         "Accept": "application/json",
     }
-    try:
-        async with httpx.AsyncClient(timeout=40, headers=headers) as client:
-            resp = await client.post(OVERPASS_URL, data={"data": query})
-            if resp.status_code != 200:
-                logger.warning("Overpass non-200", city=city_name, status=resp.status_code)
-                return [], f"Overpass API returned HTTP {resp.status_code}"
-            data = resp.json()
-    except httpx.TimeoutException:
-        logger.warning("Overpass timeout", city=city_name)
-        return [], "Overpass API timed out — try again in a few seconds"
-    except Exception as exc:
-        logger.warning("Overpass API fetch failed", city=city_name, error=str(exc))
-        return [], str(exc)
+    data = None
+    last_error = "Overpass API unavailable — try again later"
+    async with httpx.AsyncClient(timeout=35, headers=headers) as client:
+        for url in OVERPASS_URLS:
+            try:
+                resp = await client.post(url, data={"data": query})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    break
+                last_error = f"Overpass API returned HTTP {resp.status_code}"
+                logger.warning("Overpass non-200", city=city_name, url=url, status=resp.status_code)
+            except httpx.TimeoutException:
+                last_error = "Overpass API timed out — try again in a few seconds"
+                logger.warning("Overpass timeout", city=city_name, url=url)
+            except Exception as exc:
+                last_error = str(exc)
+                logger.warning("Overpass fetch failed", city=city_name, url=url, error=str(exc))
+
+    if data is None:
+        return [], last_error
 
     elements = data.get("elements", [])
     seen_names: set[str] = set()

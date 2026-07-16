@@ -20,6 +20,7 @@ class StationReadingIn(BaseModel):
     so2: float | None = None
     co: float | None = None
     o3: float | None = None
+    aqi: int | None = None  # pre-computed AQI from source (used when PM data unavailable)
 
 
 class StationReadingOut(BaseModel):
@@ -33,7 +34,7 @@ class StationReadingOut(BaseModel):
     co: float | None
     o3: float | None
     aqi: int | None
-    is_stale: bool
+    is_stale: bool = False
     # Derived field for API consumers
     aqi_category: str | None = None
 
@@ -51,7 +52,7 @@ class LatestReadingOut(BaseModel):
     pm10: float | None
     aqi: int | None
     aqi_category: str | None
-    is_stale: bool
+    is_stale: bool = False
 
 
 # ── Weather ───────────────────────────────────────────────────────────────────

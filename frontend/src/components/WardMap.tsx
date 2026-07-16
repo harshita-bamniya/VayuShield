@@ -1,8 +1,17 @@
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup, useMap } from "react-leaflet";
 import type { Layer, PathOptions } from "leaflet";
 import type { WardWithAqi } from "@/lib/types";
 import type { FireHotspot } from "@/features/cities/api";
+
+function MapRecenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, 10, { duration: 0.8 });
+  }, [center[0], center[1]]);
+  return null;
+}
 
 interface WardMapProps {
   wards: WardWithAqi[];
@@ -49,6 +58,7 @@ export default function WardMap({ wards, onWardClick, fireHotspots = [], center 
       style={{ height: "100%", width: "100%" }}
       scrollWheelZoom={false}
     >
+      <MapRecenter center={center} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

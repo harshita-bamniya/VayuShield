@@ -52,27 +52,34 @@ async def compare_cities(
     for city in cities:
         cid = city["id"]
 
-        # Current AQI (avg of last 30 min)
+        # Current AQI — avg of the most recent reading per active station (no time cutoff)
         aqi_now_row = await db.execute(
             text("""
-                SELECT ROUND(AVG(sr.aqi))::int
-                FROM station_readings sr
-                JOIN stations s ON s.id = sr.station_id
-                WHERE s.city_id = :cid AND sr.aqi IS NOT NULL
-                  AND sr.ts >= NOW() - INTERVAL '30 minutes'
+                SELECT ROUND(AVG(aqi))::int
+                FROM (
+                    SELECT DISTINCT ON (sr.station_id) sr.aqi
+                    FROM station_readings sr
+                    JOIN stations s ON s.id = sr.station_id
+                    WHERE s.city_id = :cid AND s.is_active = true AND sr.aqi IS NOT NULL
+                    ORDER BY sr.station_id, sr.ts DESC
+                ) latest
             """),
             {"cid": cid},
         )
         current_aqi: int | None = aqi_now_row.scalar_one_or_none()
 
-        # AQI 6h ago (avg over 30-min window centred at -6h)
+        # AQI 6h ago — closest reading per station in a 1h window around -6h
         aqi_6h_row = await db.execute(
             text("""
-                SELECT ROUND(AVG(sr.aqi))::int
-                FROM station_readings sr
-                JOIN stations s ON s.id = sr.station_id
-                WHERE s.city_id = :cid AND sr.aqi IS NOT NULL
-                  AND sr.ts BETWEEN NOW() - INTERVAL '6.5 hours' AND NOW() - INTERVAL '5.5 hours'
+                SELECT ROUND(AVG(aqi))::int
+                FROM (
+                    SELECT DISTINCT ON (sr.station_id) sr.aqi
+                    FROM station_readings sr
+                    JOIN stations s ON s.id = sr.station_id
+                    WHERE s.city_id = :cid AND s.is_active = true AND sr.aqi IS NOT NULL
+                      AND sr.ts BETWEEN NOW() - INTERVAL '7 hours' AND NOW() - INTERVAL '5 hours'
+                    ORDER BY sr.station_id, sr.ts DESC
+                ) ago
             """),
             {"cid": cid},
         )

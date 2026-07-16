@@ -60,7 +60,11 @@ async def get_wards_for_city(
 ) -> tuple[list[dict], int]:
     offset = (page - 1) * limit
     count_result = await db.execute(
-        select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
+        text(
+            "SELECT COUNT(*) FROM wards w WHERE w.city_id = :city_id"
+            " AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)"
+        ),
+        {"city_id": city_id},
     )
     total = count_result.scalar_one()
 
@@ -75,11 +79,27 @@ async def get_wards_for_city(
             Ward.created_at,
             func.ST_AsGeoJSON(Ward.geometry).label("geometry"),
         )
-        .where(Ward.city_id == city_id)
+        .where(
+            Ward.city_id == city_id,
+            Ward.id.in_(
+                text(
+                    "SELECT ward_id FROM stations WHERE ward_id IS NOT NULL AND city_id = :city_id AND is_active = true"
+                ).bindparams(city_id=city_id)
+            ),
+        )
         .offset(offset)
         .limit(limit)
     )
-    wards = [dict(r._mapping) for r in rows]
+    wards = []
+    for r in rows:
+        d = dict(r._mapping)
+        if d.get("geometry") and isinstance(d["geometry"], str):
+            try:
+                import json
+                d["geometry"] = json.loads(d["geometry"])
+            except (json.JSONDecodeError, ValueError):
+                d["geometry"] = None
+        wards.append(d)
     return wards, total
 
 
@@ -96,7 +116,16 @@ async def get_ward_by_id(db: AsyncSession, ward_id: str) -> dict | None:
         ).where(Ward.id == ward_id)
     )
     row = rows.first()
-    return dict(row._mapping) if row else None
+    if not row:
+        return None
+    d = dict(row._mapping)
+    if d.get("geometry") and isinstance(d["geometry"], str):
+        try:
+            import json
+            d["geometry"] = json.loads(d["geometry"])
+        except (json.JSONDecodeError, ValueError):
+            d["geometry"] = None
+    return d
 
 
 async def get_wards_for_city_with_aqi(
@@ -105,7 +134,11 @@ async def get_wards_for_city_with_aqi(
     """Same as get_wards_for_city but enriched with avg AQI from latest station readings."""
     offset = (page - 1) * limit
     count_result = await db.execute(
-        select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
+        text(
+            "SELECT COUNT(*) FROM wards w WHERE w.city_id = :city_id"
+            " AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)"
+        ),
+        {"city_id": city_id},
     )
     total = count_result.scalar_one()
 
@@ -173,6 +206,7 @@ async def get_wards_for_city_with_aqi(
                 GROUP BY s.ward_id
             ) direct ON direct.ward_id = w.id
             WHERE w.city_id = :city_id
+              AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)
             ORDER BY w.name
             LIMIT :limit OFFSET :offset
             """
@@ -184,6 +218,12 @@ async def get_wards_for_city_with_aqi(
         d = dict(r._mapping)
         avg = d.get("avg_aqi")
         d["aqi_category"] = get_aqi_category(avg) if avg is not None else None
+        if d.get("geometry") and isinstance(d["geometry"], str):
+            try:
+                import json
+                d["geometry"] = json.loads(d["geometry"])
+            except (json.JSONDecodeError, ValueError):
+                d["geometry"] = None
         wards.append(d)
     return wards, total
 

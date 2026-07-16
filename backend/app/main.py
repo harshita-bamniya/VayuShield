@@ -23,31 +23,74 @@ from app.core.logging import configure_logging, logger
 from app.db.seed import seed_admin
 
 
+async def _refresh_city(city_id: str) -> None:
+    """Poll readings + weather + run forecast + attribution for one city."""
+    from app.core.database import AsyncSessionLocal
+    from app.modules.attribution.service import compute_attribution
+    from app.modules.forecasting.service import run_forecast
+    from app.modules.ingestion.service import (
+        poll_city_stations,
+        poll_fire_hotspots,
+        poll_weather,
+    )
+
+    async with AsyncSessionLocal() as db:
+        await poll_city_stations(db, city_id)
+        await poll_weather(db, city_id)
+        await poll_fire_hotspots(db, city_id)
+
+    async with AsyncSessionLocal() as db:
+        await run_forecast(db, city_id)
+
+    async with AsyncSessionLocal() as db:
+        await compute_attribution(db, city_id)
+
+    logger.info("City refresh complete", city_id=city_id)
+
+
 async def _startup_poll() -> None:
-    """Trigger one ingestion cycle for every city so the dashboard is never empty."""
+    """On startup: poll readings then immediately run forecast + attribution for every city."""
     try:
         from sqlalchemy import select
 
         from app.core.database import AsyncSessionLocal
         from app.modules.cities.models import City
-        from app.modules.ingestion.service import (
-            poll_city_stations,
-            poll_fire_hotspots,
-            poll_weather,
-        )
 
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(City.id))
             city_ids = [row[0] for row in result.all()]
 
         for city_id in city_ids:
-            async with AsyncSessionLocal() as db:
-                await poll_city_stations(db, city_id)
-                await poll_weather(db, city_id)
-                await poll_fire_hotspots(db, city_id)
-            logger.info("Startup poll complete", city_id=city_id)
+            try:
+                await _refresh_city(city_id)
+            except Exception as exc:
+                logger.warning("City refresh failed", city_id=city_id, error=str(exc))
     except Exception as exc:
         logger.warning("Startup poll failed (non-fatal)", error=str(exc))
+
+
+async def _background_poller() -> None:
+    """Refresh all cities every 30 minutes so data never goes stale."""
+    await asyncio.sleep(1800)  # wait 30 min after startup (startup already did a fresh run)
+    while True:
+        try:
+            from sqlalchemy import select
+
+            from app.core.database import AsyncSessionLocal
+            from app.modules.cities.models import City
+
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(City.id))
+                city_ids = [row[0] for row in result.all()]
+
+            for city_id in city_ids:
+                try:
+                    await _refresh_city(city_id)
+                except Exception as exc:
+                    logger.warning("Background refresh failed", city_id=city_id, error=str(exc))
+        except Exception as exc:
+            logger.warning("Background poller error", error=str(exc))
+        await asyncio.sleep(1800)
 
 
 @asynccontextmanager
@@ -56,6 +99,7 @@ async def lifespan(app: FastAPI):
     logger.info("VayuShield AI starting", environment=settings.ENVIRONMENT)
     await seed_admin()
     asyncio.create_task(_startup_poll())
+    asyncio.create_task(_background_poller())
     yield
     logger.info("VayuShield AI shutting down")
 

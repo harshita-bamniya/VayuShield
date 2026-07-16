@@ -21,7 +21,7 @@ const PERIOD_OPTIONS = [
 ];
 
 function aqiColor(aqi: number | null): string {
-  if (aqi === null) return "text-gray-400";
+  if (aqi === null) return "text-slate-400";
   if (aqi <= 50) return "text-green-400";
   if (aqi <= 100) return "text-lime-400";
   if (aqi <= 200) return "text-yellow-400";
@@ -42,23 +42,23 @@ function aqiLabel(aqi: number | null): string {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col gap-1">
-      <div className="text-xs text-gray-400 uppercase tracking-wide">{label}</div>
+    <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 flex flex-col gap-1">
+      <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
       <div className="text-2xl font-bold text-white">{value}</div>
-      {sub && <div className="text-xs text-gray-500">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500">{sub}</div>}
     </div>
   );
 }
 
 function WardTable({ rows }: { rows: WardAqiRow[] }) {
   if (!rows.length) {
-    return <p className="text-gray-500 text-sm">No ward data for this period.</p>;
+    return <p className="text-slate-500 text-sm">No ward data for this period.</p>;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-700 text-gray-400 text-left">
+          <tr className="border-b border-slate-800 text-slate-400 text-left">
             <th className="py-2 pr-4">Ward</th>
             <th className="py-2 pr-4">Avg AQI</th>
             <th className="py-2 pr-4">Category</th>
@@ -67,13 +67,13 @@ function WardTable({ rows }: { rows: WardAqiRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.ward_id} className="border-b border-gray-800 hover:bg-gray-800/50">
+            <tr key={row.ward_id} className="border-b border-slate-900 hover:bg-slate-900/50">
               <td className="py-2 pr-4 text-white font-medium">{row.ward_name}</td>
               <td className={`py-2 pr-4 font-semibold ${aqiColor(row.avg_aqi)}`}>
                 {row.avg_aqi !== null ? Math.round(row.avg_aqi) : "—"}
               </td>
-              <td className="py-2 pr-4 text-gray-300">{aqiLabel(row.avg_aqi)}</td>
-              <td className="py-2 text-gray-400">{row.reading_count}</td>
+              <td className="py-2 pr-4 text-slate-300">{aqiLabel(row.avg_aqi)}</td>
+              <td className="py-2 text-slate-400">{row.reading_count}</td>
             </tr>
           ))}
         </tbody>
@@ -121,23 +121,27 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
+    <div className="flex h-screen bg-slate-950 text-white">
       {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 bg-gray-800 border-r border-gray-700 flex flex-col">
-        <div className="px-5 py-4 border-b border-gray-700">
-          <span className="text-lg font-bold text-sky-400">VayuShield</span>
-          <span className="text-xs text-gray-500 block">AI Platform</span>
+      <aside className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
+        <div className="px-5 py-5 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 border border-blue-400 border-opacity-40 flex items-center justify-center text-sm">
+              🌬️
+            </div>
+            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
+          </div>
         </div>
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-0.5">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-sky-600/20 text-sky-400"
-                    : "text-gray-400 hover:bg-gray-700 hover:text-white"
+                    ? "bg-blue-500 bg-opacity-20 text-blue-300"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`
               }
             >
@@ -146,19 +150,31 @@ export default function ReportsPage() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-500">
-          {user?.email}
+        <div className="px-3 py-4 border-t border-slate-800">
+          <div className="px-3 py-2 mb-1">
+            <p className="text-xs text-slate-500">Signed in as</p>
+            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-blue-500 bg-opacity-20 text-blue-400 uppercase tracking-wide font-semibold">
+              {user?.role}
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 flex items-center justify-between px-6 border-b border-gray-700 bg-gray-800 flex-shrink-0">
+        <header className="h-14 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900 flex-shrink-0">
           <div>
             <h1 className="text-base font-semibold text-white">Reports & Export</h1>
             {summary && (
-              <p className="text-xs text-gray-400">{summary.city.name}, {summary.city.state}</p>
+              <p className="text-xs text-slate-400">{summary.city.name}, {summary.city.state}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -166,7 +182,7 @@ export default function ReportsPage() {
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="text-sm bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
               {PERIOD_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -181,7 +197,7 @@ export default function ReportsPage() {
             </button>
             <button
               onClick={handleLogout}
-              className="text-xs text-gray-400 hover:text-white transition-colors"
+              className="text-xs text-slate-400 hover:text-white transition-colors"
             >
               Logout
             </button>
@@ -197,7 +213,7 @@ export default function ReportsPage() {
           )}
 
           {isLoading && (
-            <div className="text-gray-400 text-sm">Loading report…</div>
+            <div className="text-slate-400 text-sm">Loading report…</div>
           )}
 
           {error && (
@@ -210,7 +226,7 @@ export default function ReportsPage() {
             <>
               {/* Summary stat cards */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
                   Air Quality Overview
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -254,20 +270,20 @@ export default function ReportsPage() {
 
               {/* AQI Category breakdown */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
                   AQI Category Breakdown (% of Hours)
                 </h2>
-                <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 space-y-2">
+                <div className="bg-gray-800 rounded-xl border border-slate-800 p-4 space-y-2">
                   {Object.entries(summary.aqi_stats.category_breakdown).map(([cat, pct]) => (
                     <div key={cat} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400 w-24 flex-shrink-0">{cat}</span>
-                      <div className="flex-1 bg-gray-700 rounded-full h-2">
+                      <span className="text-xs text-slate-400 w-24 flex-shrink-0">{cat}</span>
+                      <div className="flex-1 bg-slate-800 rounded-full h-2">
                         <div
                           className="h-2 rounded-full bg-sky-500"
                           style={{ width: `${Math.min(pct, 100)}%` }}
                         />
                       </div>
-                      <span className="text-xs text-gray-300 w-12 text-right">{pct.toFixed(1)}%</span>
+                      <span className="text-xs text-slate-300 w-12 text-right">{pct.toFixed(1)}%</span>
                     </div>
                   ))}
                 </div>
@@ -276,25 +292,25 @@ export default function ReportsPage() {
               {/* Top enforcement items + advisory counts side-by-side */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <section>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
                     Top Enforcement Priorities
                   </h2>
-                  <div className="bg-gray-800 rounded-xl border border-gray-700 divide-y divide-gray-700">
+                  <div className="bg-gray-800 rounded-xl border border-slate-800 divide-y divide-gray-700">
                     {summary.top_enforcement_items.length === 0 && (
-                      <p className="p-4 text-sm text-gray-500">No enforcement items.</p>
+                      <p className="p-4 text-sm text-slate-500">No enforcement items.</p>
                     )}
                     {summary.top_enforcement_items.map((item, i) => (
                       <div key={item.id} className="p-4 flex items-center gap-3">
                         <span className="text-lg font-bold text-gray-600">#{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-white font-medium truncate">{item.source_name}</div>
-                          <div className="text-xs text-gray-500 capitalize">{item.source_type}</div>
+                          <div className="text-xs text-slate-500 capitalize">{item.source_type}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-semibold text-orange-400">
                             {(item.priority_score * 100).toFixed(0)}
                           </div>
-                          <div className="text-xs text-gray-500 capitalize">{item.status}</div>
+                          <div className="text-xs text-slate-500 capitalize">{item.status}</div>
                         </div>
                       </div>
                     ))}
@@ -302,28 +318,28 @@ export default function ReportsPage() {
                 </section>
 
                 <section>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
                     Advisories by Language
                   </h2>
-                  <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 space-y-2">
+                  <div className="bg-gray-800 rounded-xl border border-slate-800 p-4 space-y-2">
                     {Object.keys(summary.advisory_count_by_language).length === 0 && (
-                      <p className="text-sm text-gray-500">No advisories generated yet.</p>
+                      <p className="text-sm text-slate-500">No advisories generated yet.</p>
                     )}
                     {Object.entries(summary.advisory_count_by_language).map(([lang, count]) => (
                       <div key={lang} className="flex justify-between text-sm">
-                        <span className="text-gray-300 uppercase">{lang}</span>
+                        <span className="text-slate-300 uppercase">{lang}</span>
                         <span className="text-white font-semibold">{count}</span>
                       </div>
                     ))}
                   </div>
 
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-3">
+                  <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mt-4 mb-3">
                     Attribution Breakdown
                   </h2>
-                  <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 space-y-2">
+                  <div className="bg-gray-800 rounded-xl border border-slate-800 p-4 space-y-2">
                     {Object.entries(summary.attribution.breakdown).map(([src, pct]) => (
                       <div key={src} className="flex justify-between text-sm">
-                        <span className="text-gray-300 capitalize">{src}</span>
+                        <span className="text-slate-300 capitalize">{src}</span>
                         <span className="text-white font-semibold">{pct.toFixed(1)}%</span>
                       </div>
                     ))}
@@ -333,10 +349,10 @@ export default function ReportsPage() {
 
               {/* Per-ward AQI table */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
                   Per-Ward Avg AQI — Last {days} Days
                 </h2>
-                <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+                <div className="bg-gray-800 rounded-xl border border-slate-800 p-4">
                   <WardTable rows={summary.ward_aqi_table} />
                 </div>
               </section>

@@ -1,17 +1,15 @@
 """CAAQMS / CPCB connector.
 
-Two data paths:
-  1. Real — data.gov.in CPCB API (requires CPCB_API_KEY in .env).
-     Fetches all stations for a city in one call; returns grouped readings.
-  2. Mock fallback — statistically realistic Delhi AQI values when no key
-     is set or the API is unavailable.
+Data path:
+  Primary  — WAQI API (waqi.info) which aggregates real CPCB/DPCC station data.
+             Requires WAQI_TOKEN in .env. Free token at https://aqicn.org/data-platform/token/
+             Falls back to data.gov.in CPCB API if WAQI_TOKEN not set.
+  Secondary — data.gov.in CPCB API (requires CPCB_API_KEY in .env).
+  No mock fallback — if both APIs are unavailable, no reading is stored.
 
-API: https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69
-Returns one row per pollutant per station; we group by station name.
+WAQI endpoint: https://api.waqi.info/feed/{slug}/?token={token}
 """
 
-import math
-import random
 from datetime import datetime
 
 import httpx
@@ -21,28 +19,148 @@ from app.core.logging import logger
 from app.modules.ingestion.schemas import StationReadingIn
 
 CPCB_API_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
+WAQI_FEED_URL = "https://api.waqi.info/feed/{slug}/"
+
+# Maps our internal station_code → WAQI station slug (verified against live API)
+_WAQI_SLUGS: dict[str, str] = {
+    # Delhi DPCC network
+    "DPCC_ANAND_VIHAR":  "delhi/anand-vihar",
+    "DPCC_ITO":          "delhi/ito",
+    "DPCC_PUNJABI_BAGH": "delhi/punjabi-bagh",
+    "DPCC_MANDIR_MARG":  "delhi/mandir-marg",
+    "DPCC_SHADIPUR":     "delhi/shadipur",
+    "DPCC_NARELA":       "delhi/narela",
+    "DPCC_MUNDKA":       "delhi/mundka",
+    "IITM_PUSA":         "delhi/pusa",
+    "DPCC_DWARKA_SEC8":  "delhi/national-institute-of-malaria-research--sector-8--dwarka",
+    "DPCC_RK_PURAM":     "india/delhi/rk-puram",
+    "DPCC_ROHINI":       "india/delhi/rohini",
+    "DPCC_OKHLA_PH2":    "india/delhi/okhla-phase-2",
+    "DPCC_BAWANA":       "india/delhi/bawana",
+    "DPCC_PATPARGANJ":   "india/delhi/patparganj",
+    "DPCC_SONIA_VIHAR":  "india/delhi/sonia-vihar",
+    "DPCC_VIVEK_VIHAR":  "india/delhi/vivek-vihar",
+    # Mumbai MPCB
+    "MPCB_COLABA":       "india/mumbai/colaba",
+    "MPCB_MAZGAON":      "india/mumbai/mazgaon",
+    "MPCB_WORLI":        "india/mumbai/worli",
+    "MPCB_CHEMBUR":      "india/mumbai/sion",
+    "MPCB_BANDRA":       "india/mumbai/bandra",
+    "MPCB_KURLA":        "india/mumbai/kurla",
+    "MPCB_ANDHERI":      "india/mumbai/chakala-andheri-east",
+    "MPCB_MALAD":        "india/mumbai/malad-west",
+    "MPCB_BORIVALI":     "india/mumbai/borivali-east",
+    "MPCB_MULUND":       "india/mumbai/mulund-west",
+    # Bengaluru KSPCB
+    "KSPCB_BTM":          "india/bangalore/btm",
+    "KSPCB_SILK_BOARD":   "india/bengaluru/silk-board",
+    "KSPCB_HEBBAL":       "india/bengaluru/hebbal",
+    "KSPCB_PEENYA":       "india/bangalore/peenya",
+    "KSPCB_CITY_RAILWAY": "india/bangalore/city-railway-station",
+    # Hyderabad TSPCB
+    "TSPCB_SANATHNAGAR":  "india/hyderabad/sanathnagar",
+    "TSPCB_ZOO_PARK":     "india/hyderabad/zoo-park--bahadurpura-west",
+    "TSPCB_SOMAJIGUDA":   "india/hyderabad/somajiguda",
+    # TSPCB_NACHARAM not available on WAQI — omitted
+    # Chennai TNPCB
+    "TNPCB_ALANDUR":      "chennai/alandur",
+    "TNPCB_MANALI":       "chennai/manali",
+    "TNPCB_VELACHERY":    "chennai//velachery-res.-area",
+    # Kolkata WBPCB
+    "WBPCB_BALLYGUNGE":   "india/kolkata/ballygunge",
+    "WBPCB_JADAVPUR":     "india/kolkata/jadavpur",
+    "WBPCB_FORT_WILLIAM": "india/kolkata/fort-william",
+    # Pune MPCB
+    "MPCB_SHIVAJINAGAR":  "pune/shivajinagar",
+    "MPCB_KATRAJ":        "pune/katraj",
+    "MPCB_HADAPSAR":      "pune/hadapsar",
+}
 
 # Pollutant field names as returned by data.gov.in
 _POLLUTANT_MAP = {
     "PM2.5": "pm25",
-    "PM10": "pm10",
-    "NO2": "no2",
-    "SO2": "so2",
-    "CO": "co",
+    "PM10":  "pm10",
+    "NO2":   "no2",
+    "SO2":   "so2",
+    "CO":    "co",
     "OZONE": "o3",
-    "O3": "o3",
-    "NH3": None,  # not stored in our schema
+    "O3":    "o3",
+    "NH3":   None,
 }
 
 
-# ── Public API used by service.py ─────────────────────────────────────────────
+# ── WAQI fetch (primary) ──────────────────────────────────────────────────────
+
+
+async def fetch_station_reading_waqi(
+    station_code: str,
+    station_id: str,
+    ts: datetime,
+) -> StationReadingIn | None:
+    """Fetch one station's reading from the WAQI API using the station slug."""
+    token = settings.WAQI_TOKEN
+    if not token:
+        return None
+
+    slug = _WAQI_SLUGS.get(station_code)
+    if not slug:
+        logger.debug("No WAQI slug for station", code=station_code)
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(WAQI_FEED_URL.format(slug=slug), params={"token": token})
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        logger.warning("WAQI fetch failed", station=station_code, error=str(exc))
+        return None
+
+    if data.get("status") != "ok":
+        logger.warning("WAQI returned non-ok status", station=station_code, status=data.get("status"))
+        return None
+
+    iaqi = data["data"].get("iaqi", {})
+    aqi_raw = data["data"].get("aqi")
+
+    def _val(key: str) -> float | None:
+        v = iaqi.get(key, {}).get("v")
+        return float(v) if v is not None else None
+
+    pm25 = _val("pm25")
+    pm10 = _val("pm10")
+
+    # Parse overall AQI reported by WAQI
+    aqi_int: int | None = None
+    if aqi_raw not in (None, "-"):
+        try:
+            aqi_int = int(float(aqi_raw))
+        except (TypeError, ValueError):
+            pass
+
+    # Nothing useful to store if no pollutant data and no overall AQI
+    if pm25 is None and pm10 is None and aqi_int is None:
+        return None
+
+    logger.info("WAQI reading fetched", station=station_code, slug=slug, aqi=aqi_raw, pm25=pm25)
+    return StationReadingIn(
+        station_id=station_id,
+        ts=ts,
+        pm25=pm25,
+        pm10=pm10,
+        no2=_val("no2"),
+        so2=_val("so2"),
+        co=_val("co"),
+        o3=_val("o3"),
+        aqi=aqi_int,
+    )
+
+
+# ── data.gov.in CPCB bulk fetch (secondary) ───────────────────────────────────
 
 
 async def fetch_city_readings_cpcb(city_name: str) -> dict[str, dict]:
     """Fetch all station readings for a city from data.gov.in CPCB API.
-
-    Returns a dict keyed by lowercase station name fragment →
-      {"pm25": float|None, "pm10": ..., "no2": ..., "so2": ..., "co": ..., "o3": ...}
 
     Returns {} if CPCB_API_KEY is not set or the call fails.
     """
@@ -50,7 +168,6 @@ async def fetch_city_readings_cpcb(city_name: str) -> dict[str, dict]:
     if not api_key:
         return {}
 
-    # data.gov.in uses state name "Delhi" for the UT; normalise common names
     state_param = _city_to_state(city_name)
     try:
         async with httpx.AsyncClient(timeout=20) as client:
@@ -85,12 +202,8 @@ async def fetch_city_readings_cpcb(city_name: str) -> dict[str, dict]:
         if key not in grouped:
             grouped[key] = {
                 "_station_raw": station_raw,
-                "pm25": None,
-                "pm10": None,
-                "no2": None,
-                "so2": None,
-                "co": None,
-                "o3": None,
+                "pm25": None, "pm10": None, "no2": None,
+                "so2": None, "co": None, "o3": None,
             }
 
         if avg_raw and avg_raw.upper() != "NA":
@@ -109,17 +222,11 @@ def match_station_reading(
     station_id: str,
     ts: datetime,
 ) -> StationReadingIn | None:
-    """Match a DB station to CPCB data by fuzzy name lookup on station_code keywords.
-
-    station_code examples: "DPCC_ANAND_VIHAR", "DPCC_ITO", "IITM_PUSA"
-    CPCB station names:    "Anand Vihar, Delhi - DPCC", "ITO, Delhi - DPCC"
-    """
+    """Match a DB station to CPCB bulk data by fuzzy name on station_code keywords."""
     if not cpcb_data:
         return None
 
-    # Extract meaningful keywords from the station code (drop agency prefix)
     parts = station_code.lower().split("_")
-    # Remove common agency prefixes
     agencies = {"dpcc", "iitm", "cpcb", "mpcb", "bspcb", "kspcb"}
     keywords = [p for p in parts if p not in agencies and len(p) > 1]
 
@@ -135,16 +242,10 @@ def match_station_reading(
         return None
 
     row = cpcb_data[best_key]
-    # Need at least PM2.5 or PM10 to be useful
     if row.get("pm25") is None and row.get("pm10") is None:
         return None
 
-    logger.info(
-        "Matched CPCB station",
-        code=station_code,
-        cpcb_station=row["_station_raw"],
-        score=best_score,
-    )
+    logger.info("Matched CPCB station", code=station_code, cpcb_station=row["_station_raw"], score=best_score)
     return StationReadingIn(
         station_id=station_id,
         ts=ts,
@@ -161,187 +262,45 @@ async def fetch_station_readings(
     station_code: str,
     station_id: str,
     ts: datetime,
-) -> StationReadingIn:
-    """Per-station fallback: always returns a mock reading (used when CPCB bulk fails)."""
-    return _mock_reading(station_id, ts)
+) -> StationReadingIn | None:
+    """Per-station fetch — returns None if no data available."""
+    return None
 
 
-# ── City → state name mapping for data.gov.in filter ─────────────────────────
+# ── City → state name mapping for data.gov.in ─────────────────────────────────
 
 
 def _city_to_state(city_name: str) -> str:
     _MAP = {
-        # Delhi / NCR
-        "new delhi": "Delhi",
-        "delhi": "Delhi",
-        "gurugram": "Haryana",
-        "gurgaon": "Haryana",
-        "faridabad": "Haryana",
-        "noida": "Uttar Pradesh",
-        "ghaziabad": "Uttar Pradesh",
-        # Maharashtra
-        "mumbai": "Maharashtra",
-        "pune": "Maharashtra",
-        "nagpur": "Maharashtra",
-        "nashik": "Maharashtra",
-        "aurangabad": "Maharashtra",
-        "solapur": "Maharashtra",
-        "kolhapur": "Maharashtra",
-        "amravati": "Maharashtra",
-        # Karnataka
-        "bengaluru": "Karnataka",
-        "bangalore": "Karnataka",
-        "mysuru": "Karnataka",
-        "mysore": "Karnataka",
-        "hubli": "Karnataka",
-        "mangaluru": "Karnataka",
-        # Telangana & Andhra Pradesh
-        "hyderabad": "Telangana",
-        "warangal": "Telangana",
-        "visakhapatnam": "Andhra Pradesh",
-        "vijayawada": "Andhra Pradesh",
-        "guntur": "Andhra Pradesh",
-        "tirupati": "Andhra Pradesh",
-        # Tamil Nadu
-        "chennai": "Tamil Nadu",
-        "coimbatore": "Tamil Nadu",
+        "new delhi": "Delhi", "delhi": "Delhi",
+        "gurugram": "Haryana", "faridabad": "Haryana",
+        "noida": "Uttar Pradesh", "ghaziabad": "Uttar Pradesh",
+        "mumbai": "Maharashtra", "pune": "Maharashtra",
+        "nagpur": "Maharashtra", "nashik": "Maharashtra",
+        "bengaluru": "Karnataka", "bangalore": "Karnataka",
+        "mysuru": "Karnataka", "hubli": "Karnataka",
+        "hyderabad": "Telangana", "warangal": "Telangana",
+        "visakhapatnam": "Andhra Pradesh", "vijayawada": "Andhra Pradesh",
+        "chennai": "Tamil Nadu", "coimbatore": "Tamil Nadu",
         "madurai": "Tamil Nadu",
-        "tiruchirappalli": "Tamil Nadu",
-        "trichy": "Tamil Nadu",
-        "salem": "Tamil Nadu",
-        "tirunelveli": "Tamil Nadu",
-        # West Bengal
-        "kolkata": "West Bengal",
-        "howrah": "West Bengal",
-        "durgapur": "West Bengal",
-        "asansol": "West Bengal",
-        # Gujarat
-        "ahmedabad": "Gujarat",
-        "surat": "Gujarat",
-        "vadodara": "Gujarat",
-        "rajkot": "Gujarat",
-        "bhavnagar": "Gujarat",
-        "jamnagar": "Gujarat",
-        # Rajasthan
-        "jaipur": "Rajasthan",
-        "jodhpur": "Rajasthan",
-        "udaipur": "Rajasthan",
-        "kota": "Rajasthan",
-        "ajmer": "Rajasthan",
-        "bikaner": "Rajasthan",
-        # Uttar Pradesh
-        "lucknow": "Uttar Pradesh",
-        "kanpur": "Uttar Pradesh",
-        "agra": "Uttar Pradesh",
-        "varanasi": "Uttar Pradesh",
-        "allahabad": "Uttar Pradesh",
-        "prayagraj": "Uttar Pradesh",
-        "meerut": "Uttar Pradesh",
-        "bareilly": "Uttar Pradesh",
-        "moradabad": "Uttar Pradesh",
-        "aligarh": "Uttar Pradesh",
-        # Bihar
-        "patna": "Bihar",
-        "gaya": "Bihar",
-        "muzaffarpur": "Bihar",
-        # Madhya Pradesh
-        "bhopal": "Madhya Pradesh",
-        "indore": "Madhya Pradesh",
-        "jabalpur": "Madhya Pradesh",
-        "gwalior": "Madhya Pradesh",
-        "ujjain": "Madhya Pradesh",
-        # Punjab & Haryana
+        "kolkata": "West Bengal", "howrah": "West Bengal",
+        "ahmedabad": "Gujarat", "surat": "Gujarat",
+        "vadodara": "Gujarat", "rajkot": "Gujarat",
+        "jaipur": "Rajasthan", "jodhpur": "Rajasthan",
+        "lucknow": "Uttar Pradesh", "kanpur": "Uttar Pradesh",
+        "agra": "Uttar Pradesh", "varanasi": "Uttar Pradesh",
+        "patna": "Bihar", "gaya": "Bihar",
+        "bhopal": "Madhya Pradesh", "indore": "Madhya Pradesh",
         "chandigarh": "Chandigarh",
-        "ludhiana": "Punjab",
-        "amritsar": "Punjab",
-        "jalandhar": "Punjab",
-        "patiala": "Punjab",
-        "ambala": "Haryana",
-        "hisar": "Haryana",
-        "rohtak": "Haryana",
-        "panipat": "Haryana",
-        # Other states
-        "bhubaneswar": "Odisha",
-        "cuttack": "Odisha",
-        "rourkela": "Odisha",
-        "ranchi": "Jharkhand",
-        "jamshedpur": "Jharkhand",
-        "dhanbad": "Jharkhand",
-        "raipur": "Chhattisgarh",
-        "bhilai": "Chhattisgarh",
-        "dehradun": "Uttarakhand",
-        "haridwar": "Uttarakhand",
-        "shimla": "Himachal Pradesh",
-        "srinagar": "Jammu & Kashmir",
-        "jammu": "Jammu & Kashmir",
-        "guwahati": "Assam",
-        "dibrugarh": "Assam",
+        "ludhiana": "Punjab", "amritsar": "Punjab",
+        "bhubaneswar": "Odisha", "ranchi": "Jharkhand",
+        "raipur": "Chhattisgarh", "dehradun": "Uttarakhand",
+        "guwahati": "Assam", "kochi": "Kerala",
         "thiruvananthapuram": "Kerala",
-        "trivandrum": "Kerala",
-        "kochi": "Kerala",
-        "kozhikode": "Kerala",
-        "thrissur": "Kerala",
-        "puducherry": "Puducherry",
-        "pondicherry": "Puducherry",
-        "port blair": "Andaman and Nicobar Islands",
-        "panaji": "Goa",
-        "margao": "Goa",
-        "aizawl": "Mizoram",
-        "imphal": "Manipur",
-        "kohima": "Nagaland",
-        "agartala": "Tripura",
-        "shillong": "Meghalaya",
-        "gangtok": "Sikkim",
-        "itanagar": "Arunachal Pradesh",
     }
     return _MAP.get(city_name.lower(), city_name)
 
 
-# ── Mock fallback ─────────────────────────────────────────────────────────────
-
-
-def _mock_reading(station_id: str, ts: datetime) -> StationReadingIn:
-    """Generate a realistic PM2.5/PM10/AQI value for a Delhi station."""
-    hour = ts.hour
-
-    diurnal = 1.0 + 0.4 * (
-        math.exp(-0.5 * ((hour - 8) / 2) ** 2) + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
-    )
-
-    base_pm25 = 120.0 * diurnal
-    pm25 = max(5.0, base_pm25 * random.uniform(0.85, 1.15))
-    pm10 = pm25 * random.uniform(1.5, 2.2)
-    no2 = random.uniform(20, 90)
-    so2 = random.uniform(5, 30)
-    co = random.uniform(0.5, 3.0)
-    o3 = random.uniform(10, 60)
-
-    return StationReadingIn(
-        station_id=station_id,
-        ts=ts,
-        pm25=round(pm25, 2),
-        pm10=round(pm10, 2),
-        no2=round(no2, 2),
-        so2=round(so2, 2),
-        co=round(co, 2),
-        o3=round(o3, 2),
-    )
-
-
-def generate_historical_readings(
-    station_id: str,
-    start: datetime,
-    end: datetime,
-    interval_hours: int = 1,
-) -> list[StationReadingIn]:
-    """Generate mock readings between start and end — used by seed script."""
-    from datetime import timedelta
-
-    readings = []
-    current = start
-    while current <= end:
-        readings.append(_mock_reading(station_id, current))
-        current = start + timedelta(hours=interval_hours * (len(readings)))
-        if current > end:
-            break
-    return readings
+def generate_historical_readings(station_id, start, end, interval_hours=1):
+    """Stub — no mock historical data."""
+    return []

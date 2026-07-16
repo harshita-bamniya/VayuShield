@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import {
@@ -1135,7 +1135,7 @@ function CityRow({ city }: { city: CityWithCounts }) {
   const stationCount = stationsQ.data?.length ?? "—";
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/50 overflow-hidden">
+    <div className="rounded-lg border border-slate-800 bg-slate-900/50 overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-4 px-4 py-3 hover:bg-slate-700/40 transition-colors">
         <button
@@ -1190,7 +1190,7 @@ function CityRow({ city }: { city: CityWithCounts }) {
 
       {/* Expanded detail */}
       {open && (
-        <div className="border-t border-slate-700 px-4 py-4 space-y-5">
+        <div className="border-t border-slate-800 px-4 py-4 space-y-5">
           {/* Initialize data banner */}
           {(() => {
             const hasStations = (stationsQ.data?.length ?? 0) > 0;
@@ -1397,7 +1397,8 @@ function CityRow({ city }: { city: CityWithCounts }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AdminCitiesPage() {
-  const user = useAuth((s) => s.user);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [showAddCity, setShowAddCity] = useState(false);
 
   const citiesQ = useQuery({
@@ -1412,23 +1413,27 @@ export default function AdminCitiesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex">
+    <div className="min-h-screen bg-slate-950 text-white flex">
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col">
-        <div className="px-5 py-4 border-b border-slate-700">
-          <p className="text-sky-400 font-bold text-lg tracking-tight">VayuShield</p>
-          <p className="text-slate-500 text-xs">AI Platform</p>
+      <aside className="w-60 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
+        <div className="px-5 py-5 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 border border-blue-400 border-opacity-40 flex items-center justify-center text-sm">
+              🌬️
+            </div>
+            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
+          </div>
         </div>
-        <nav className="flex-1 py-4 space-y-1 px-2">
+        <nav className="flex-1 px-3 py-4 space-y-0.5">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-sky-500/20 text-sky-400 font-medium"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700"
+                    ? "bg-blue-500 bg-opacity-20 text-blue-300"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800"
                 }`
               }
             >
@@ -1437,8 +1442,20 @@ export default function AdminCitiesPage() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-slate-700 text-xs text-slate-500">
-          {user?.email}
+        <div className="px-3 py-4 border-t border-slate-800">
+          <div className="px-3 py-2 mb-1">
+            <p className="text-xs text-slate-500">Signed in as</p>
+            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-blue-500 bg-opacity-20 text-blue-400 uppercase tracking-wide font-semibold">
+              {user?.role}
+            </span>
+          </div>
+          <button
+            onClick={() => { logout(); navigate("/login"); }}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -1463,7 +1480,7 @@ export default function AdminCitiesPage() {
 
           {/* Add City Form */}
           {showAddCity && (
-            <div className="mb-6 bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <div className="mb-6 bg-slate-900 border border-slate-800 rounded-xl p-5">
               <h3 className="text-base font-semibold text-white mb-4">New City</h3>
               <AddCityForm onCreated={handleCityCreated} />
             </div>
