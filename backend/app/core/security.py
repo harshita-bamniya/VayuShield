@@ -39,11 +39,17 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     )
 
 
-def decode_token(token: str) -> dict[str, Any]:
+def decode_token(token: str, check_blacklist: bool = True) -> dict[str, Any]:
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
         raise UnauthorizedError("Invalid or expired token")
+    if check_blacklist:
+        from app.core.redis_blacklist import is_blacklisted  # late import avoids circular dep
+
+        if is_blacklisted(token):
+            raise UnauthorizedError("Token has been revoked")
+    return payload
 
 
 def require_role(*roles: str):
