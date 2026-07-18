@@ -266,7 +266,7 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
         readings.append(d)
 
     valid_aqis = [r["aqi"] for r in readings if r.get("aqi") is not None]
-    avg_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else None
+    avg_aqi = max(valid_aqis) if valid_aqis else None
 
     # Ward-specific attribution — computed from this ward's own pollutant readings
     from app.modules.attribution.service import _chemical_fingerprint

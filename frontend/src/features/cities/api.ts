@@ -56,6 +56,45 @@ export async function fetchFireHotspots(cityId: string, hoursBack = 24): Promise
   return resp.data.data ?? [];
 }
 
+// ── Traffic Snapshots ─────────────────────────────────────────────────────────
+
+export interface TrafficSegment {
+  segment_id: string;
+  segment_name: string | null;
+  congestion_ratio: number;
+  current_speed: number | null;
+  free_flow_speed: number | null;
+  lat: number | null;
+  lon: number | null;
+  ts: string;
+  is_mock: boolean;
+}
+
+export async function fetchTrafficSegments(cityId: string): Promise<TrafficSegment[]> {
+  const resp = await client.get<{ data: TrafficSegment[] }>(`/cities/${cityId}/traffic`);
+  return resp.data.data ?? [];
+}
+
+// ── Satellite Observations ────────────────────────────────────────────────────
+
+export interface SatelliteObs {
+  observed_date: string;
+  aod_value: number | null;
+  estimated_pm25: number | null;
+  source: string;
+  is_mock: boolean;
+}
+
+export async function fetchSatelliteObs(cityId: string): Promise<SatelliteObs[]> {
+  const resp = await client.get<{ data: SatelliteObs[] }>(`/cities/${cityId}/satellite`);
+  return resp.data.data ?? [];
+}
+
+export async function pollSatelliteAod(cityId: string): Promise<SatelliteObs> {
+  const resp = await client.post<{ data: SatelliteObs }>(`/cities/${cityId}/satellite/poll`);
+  return resp.data.data!;
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 export interface CreateCityPayload {

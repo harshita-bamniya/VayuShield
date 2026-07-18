@@ -167,6 +167,8 @@ async def _auto_assign_station_for_ward(
             "Auto-created and assigned nearest station to ward",
             station=nearest["name"], ward_id=ward_id, dist_km=round(dist_km, 1),
         )
+import json
+
 from app.modules.cities import repository as repo
 from app.modules.cities.schemas import (
     CityCreate,
@@ -180,6 +182,66 @@ from app.modules.cities.schemas import (
     WardWithAqiOut,
 )
 from app.schemas.common import PaginationMeta
+
+
+async def compute_vulnerability_scores(db: AsyncSession, city_id: str) -> None:
+    """Compute a 0–1 vulnerability score for every ward and persist it in vulnerable_site_flags.
+
+    Score = population_norm × 0.4 + aqi_norm × 0.6
+    Tiers: Critical ≥0.75 · High ≥0.5 · Moderate ≥0.25 · Low <0.25
+    """
+    from app.core.logging import logger
+
+    rows = await db.execute(
+        text("""
+            WITH ward_aqi AS (
+                SELECT s.ward_id, AVG(sr.aqi) AS avg_aqi
+                FROM (
+                    SELECT DISTINCT ON (station_id) station_id, aqi
+                    FROM station_readings
+                    ORDER BY station_id, ts DESC
+                ) sr
+                JOIN stations s ON s.id = sr.station_id AND s.is_active = true
+                WHERE s.city_id = :cid AND sr.aqi IS NOT NULL
+                GROUP BY s.ward_id
+            )
+            SELECT w.id, w.population, w.vulnerable_site_flags, wa.avg_aqi
+            FROM wards w
+            LEFT JOIN ward_aqi wa ON wa.ward_id = w.id
+            WHERE w.city_id = :cid
+        """),
+        {"cid": city_id},
+    )
+    ward_data = [dict(r._mapping) for r in rows]
+    if not ward_data:
+        return
+
+    populations = [w["population"] for w in ward_data if w["population"]]
+    max_pop = max(populations) if populations else 1
+
+    for w in ward_data:
+        pop_norm = (w["population"] or 0) / max_pop if max_pop > 0 else 0.0
+        aqi_norm = min(float(w["avg_aqi"] or 0) / 500.0, 1.0)
+        score = round(pop_norm * 0.4 + aqi_norm * 0.6, 3)
+        tier = (
+            "Critical" if score >= 0.75
+            else "High" if score >= 0.5
+            else "Moderate" if score >= 0.25
+            else "Low"
+        )
+        flags = dict(w["vulnerable_site_flags"] or {})
+        flags["vulnerability_score"] = score
+        flags["vulnerability_tier"] = tier
+        await db.execute(
+            text(
+                "UPDATE wards SET vulnerable_site_flags = CAST(:flags AS jsonb),"
+                " updated_at = NOW() WHERE id = :id"
+            ),
+            {"id": w["id"], "flags": json.dumps(flags)},
+        )
+
+    await db.commit()
+    logger.info("Vulnerability scores computed", city_id=city_id, wards=len(ward_data))
 
 
 async def list_cities(

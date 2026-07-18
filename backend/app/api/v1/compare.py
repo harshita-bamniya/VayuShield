@@ -52,15 +52,18 @@ async def compare_cities(
     for city in cities:
         cid = city["id"]
 
-        # Current AQI — avg of the most recent reading per active station (no time cutoff)
+        # Current AQI — max of the most recent reading per active station (CPCB method)
         aqi_now_row = await db.execute(
             text("""
-                SELECT ROUND(AVG(aqi))::int
+                SELECT ROUND(MAX(aqi))::int
                 FROM (
                     SELECT DISTINCT ON (sr.station_id) sr.aqi
                     FROM station_readings sr
                     JOIN stations s ON s.id = sr.station_id
-                    WHERE s.city_id = :cid AND s.is_active = true AND sr.aqi IS NOT NULL
+                    WHERE s.city_id = :cid AND s.is_active = true
+                      AND sr.aqi BETWEEN 0 AND 500
+                      AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
+                      AND sr.ts >= NOW() - INTERVAL '24 hours'
                     ORDER BY sr.station_id, sr.ts DESC
                 ) latest
             """),
@@ -71,12 +74,14 @@ async def compare_cities(
         # AQI 6h ago — closest reading per station in a 1h window around -6h
         aqi_6h_row = await db.execute(
             text("""
-                SELECT ROUND(AVG(aqi))::int
+                SELECT ROUND(MAX(aqi))::int
                 FROM (
                     SELECT DISTINCT ON (sr.station_id) sr.aqi
                     FROM station_readings sr
                     JOIN stations s ON s.id = sr.station_id
-                    WHERE s.city_id = :cid AND s.is_active = true AND sr.aqi IS NOT NULL
+                    WHERE s.city_id = :cid AND s.is_active = true
+                      AND sr.aqi BETWEEN 0 AND 500
+                      AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
                       AND sr.ts BETWEEN NOW() - INTERVAL '7 hours' AND NOW() - INTERVAL '5 hours'
                     ORDER BY sr.station_id, sr.ts DESC
                 ) ago

@@ -64,6 +64,9 @@ async def get_latest_readings_for_city(db: AsyncSession, city_id: str) -> list[d
                 COALESCE(sr.is_stale, false) AS is_stale
             FROM stations s
             LEFT JOIN station_readings sr ON sr.station_id = s.id
+                AND sr.ts >= NOW() - INTERVAL '24 hours'
+                AND (sr.aqi IS NULL OR sr.aqi BETWEEN 0 AND 500)
+                AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
             WHERE s.city_id = :city_id AND s.is_active = true
             ORDER BY s.id, sr.ts DESC NULLS LAST
             """
@@ -240,6 +243,113 @@ async def get_fire_hotspots(
                 d["geometry"] = None
         results.append(d)
     return results
+
+
+# ── Traffic Snapshots ─────────────────────────────────────────────────────────
+
+
+async def insert_traffic_snapshots(db: AsyncSession, snapshots: list[dict]) -> int:
+    """Bulk-insert traffic snapshots; skip duplicates on (city_id, segment_id, ts)."""
+    inserted = 0
+    for s in snapshots:
+        await db.execute(
+            text(
+                """
+                INSERT INTO traffic_snapshots
+                    (id, city_id, ts, segment_id, segment_name,
+                     congestion_ratio, current_speed, free_flow_speed,
+                     lat, lon, is_mock)
+                VALUES
+                    (:id, :city_id, :ts, :segment_id, :segment_name,
+                     :congestion_ratio, :current_speed, :free_flow_speed,
+                     :lat, :lon, :is_mock)
+                ON CONFLICT DO NOTHING
+                """
+            ),
+            s,
+        )
+        inserted += 1
+    await db.commit()
+    return inserted
+
+
+async def get_latest_traffic(db: AsyncSession, city_id: str) -> list[dict]:
+    """Latest snapshot per segment for a city (most recent poll)."""
+    rows = await db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (segment_id)
+                segment_id, segment_name, congestion_ratio,
+                current_speed, free_flow_speed, lat, lon, ts, is_mock
+            FROM traffic_snapshots
+            WHERE city_id = :city_id
+            ORDER BY segment_id, ts DESC
+            """
+        ),
+        {"city_id": city_id},
+    )
+    return [dict(r._mapping) for r in rows.fetchall()]
+
+
+async def get_avg_congestion_ratio(db: AsyncSession, city_id: str) -> float | None:
+    """Average congestion ratio across all segments from the latest poll."""
+    row = await db.execute(
+        text(
+            """
+            WITH latest AS (
+                SELECT DISTINCT ON (segment_id)
+                    congestion_ratio
+                FROM traffic_snapshots
+                WHERE city_id = :city_id
+                ORDER BY segment_id, ts DESC
+            )
+            SELECT AVG(congestion_ratio) FROM latest
+            """
+        ),
+        {"city_id": city_id},
+    )
+    r = row.fetchone()
+    return float(r[0]) if r and r[0] is not None else None
+
+
+# ── Satellite Observations ────────────────────────────────────────────────────
+
+
+async def upsert_satellite_obs(db: AsyncSession, obs: dict) -> None:
+    """Insert or update a satellite AOD observation (one row per city+date)."""
+    await db.execute(
+        text(
+            """
+            INSERT INTO satellite_observations
+                (id, city_id, observed_date, aod_value, estimated_pm25, source, is_mock)
+            VALUES (:id, :city_id, :observed_date, :aod_value, :estimated_pm25, :source, :is_mock)
+            ON CONFLICT (city_id, observed_date) DO UPDATE
+                SET aod_value      = EXCLUDED.aod_value,
+                    estimated_pm25 = EXCLUDED.estimated_pm25,
+                    source         = EXCLUDED.source,
+                    is_mock        = EXCLUDED.is_mock
+            """
+        ),
+        obs,
+    )
+    await db.commit()
+
+
+async def get_satellite_obs_7d(db: AsyncSession, city_id: str) -> list[dict]:
+    """Return last 7 days of satellite observations for a city, newest first."""
+    rows = await db.execute(
+        text(
+            """
+            SELECT observed_date, aod_value, estimated_pm25, source, is_mock
+            FROM satellite_observations
+            WHERE city_id = :city_id
+              AND observed_date >= CURRENT_DATE - INTERVAL '7 days'
+            ORDER BY observed_date DESC
+            """
+        ),
+        {"city_id": city_id},
+    )
+    return [dict(r._mapping) for r in rows.fetchall()]
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────

@@ -93,6 +93,42 @@ def _wind_description(wind_dir: float | None, wind_speed: float | None) -> str |
 # ── Stage 1: Chemical fingerprinting ─────────────────────────────────────────
 
 
+def _vehicular_multiplier(congestion_ratio: float | None, hour_utc: int, city_tz_offset: float = 5.5) -> float:
+    """Derive vehicular activity multiplier from real TomTom congestion data.
+
+    congestion_ratio = free_flow_speed / current_speed (TomTom definition):
+      1.0 → free flow (no traffic)   → multiplier ~0.4
+      1.5 → moderate congestion      → multiplier ~0.7
+      2.0+ → heavy congestion        → multiplier ~1.4
+
+    Falls back to time-of-day estimate when TomTom data is unavailable.
+    """
+    if congestion_ratio is not None:
+        # Linear scale: ratio 1.0→2.5 maps to multiplier 0.4→1.4
+        return round(0.4 + min(max(congestion_ratio - 1.0, 0.0), 1.5) / 1.5 * 1.0, 3)
+    # Fallback: estimate from local hour
+    local_hour = (hour_utc + city_tz_offset) % 24
+    if 7 <= local_hour < 10 or 17 <= local_hour < 21:
+        return 1.4
+    elif 10 <= local_hour < 17:
+        return 0.9
+    elif 21 <= local_hour or local_hour < 6:
+        return 0.4
+    return 0.7
+
+
+def _non_vehicular_factors(hour_utc: int, city_tz_offset: float = 5.5) -> dict[str, float]:
+    """Time-of-day multipliers for sources that have no real-time sensor proxy."""
+    local_hour = (hour_utc + city_tz_offset) % 24
+    if 7 <= local_hour < 10 or 17 <= local_hour < 21:
+        return {"industrial": 1.0, "agricultural": 0.6, "construction": 1.1}
+    elif 10 <= local_hour < 17:
+        return {"industrial": 1.0, "agricultural": 0.8, "construction": 1.2}
+    elif 21 <= local_hour or local_hour < 6:
+        return {"industrial": 1.3, "agricultural": 1.4, "construction": 0.3}
+    return {"industrial": 1.1, "agricultural": 1.1, "construction": 0.6}
+
+
 def _chemical_fingerprint(
     pm25: float | None,
     pm10: float | None,
@@ -101,94 +137,120 @@ def _chemical_fingerprint(
     co: float | None,
     o3: float | None,
     fire_count: int = 0,
+    hour_utc: int | None = None,
+    congestion_ratio: float | None = None,
 ) -> dict[str, float]:
     """
     Return unnormalised scores per source type based on pollutant signature.
 
+    Vehicular weight driven by real TomTom congestion_ratio when available.
+    Industrial/agricultural/construction weighted by time-of-day (no real-time proxy).
+
     Thresholds based on CPCB/WHO reference ranges for Indian urban air:
-      NO2 > 80 µg/m³       → heavy vehicular / industrial combustion
-      SO2 > 20 µg/m³       → industrial (coal/oil burning)
-      CO  > 2 mg/m³        → combustion (vehicular or burning)
-      O3  > 50 µg/m³       → photochemical smog (secondary, triggered by vehicles)
-      PM10/PM2.5 ratio > 2.5 → construction / road dust (coarse particles dominate)
-      PM2.5 > 60 AND low SO2 AND CO > 1.5 → biomass burning (agri / fire)
+      NO2 > 80 µg/m³            → heavy vehicular / industrial combustion
+      SO2 > 20 µg/m³            → industrial (coal/oil burning)
+      CO  > 10 mg/m³            → industrial furnaces / heavy burning
+      CO  3–10 mg/m³            → combustion (vehicular or burning)
+      O3  > 50 µg/m³            → photochemical smog (secondary vehicular)
+      PM10/PM2.5 ratio > 2.5    → construction / road dust
+      PM10 < PM2.5              → sensor cross-contamination, skip ratio
+      PM2.5 > 60 + CO > 2 + low SO2 → biomass burning
     """
     scores: dict[str, float] = {t: 0.0 for t in ALL_SOURCE_TYPES}
-    data_points = 0  # track how many pollutants have valid readings
+    data_points = 0
+
+    cur_hour = hour_utc if hour_utc is not None else datetime.now(UTC).hour
+    v_mul = _vehicular_multiplier(congestion_ratio, cur_hour)
+    nv = _non_vehicular_factors(cur_hour)
 
     # --- Vehicular signature: NO2 + CO ---
     if no2 is not None:
         data_points += 1
         if no2 > 80:
-            scores["vehicular"] += 2.0
+            scores["vehicular"] += 2.0 * v_mul
         elif no2 > 40:
-            scores["vehicular"] += 1.0
+            scores["vehicular"] += 1.0 * v_mul
         elif no2 > 20:
-            scores["vehicular"] += 0.4
+            scores["vehicular"] += 0.4 * v_mul
 
     if co is not None:
         data_points += 1
-        if co > 3.0:
-            scores["vehicular"] += 1.5
-            scores["agricultural"] += 0.5  # high CO also suggests burning
+        if co > 10.0:
+            # Very high CO = industrial furnace / heavy burning, not road traffic
+            scores["industrial"] += 1.5 * nv["industrial"]
+            scores["agricultural"] += 0.8 * nv["agricultural"]
+        elif co > 3.0:
+            scores["vehicular"] += 1.5 * v_mul
+            scores["agricultural"] += 0.5 * nv["agricultural"]
+            # When traffic is light (TomTom shows free flow) but CO is still elevated,
+            # the combustion is coming from non-vehicular sources
+            if v_mul < 0.6:
+                scores["industrial"] += 0.8 * nv["industrial"]
         elif co > 1.5:
-            scores["vehicular"] += 0.8
+            scores["vehicular"] += 0.8 * v_mul
         elif co > 0.8:
-            scores["vehicular"] += 0.3
+            scores["vehicular"] += 0.3 * v_mul
 
-    # --- Industrial signature: SO2 + NO2 combo ---
+    # --- Industrial signature: SO2 (+ NO2 combo) ---
     if so2 is not None:
         data_points += 1
         if so2 > 40:
-            scores["industrial"] += 2.5
+            scores["industrial"] += 2.5 * nv["industrial"]
         elif so2 > 20:
-            scores["industrial"] += 1.5
-            scores["vehicular"] += 0.3  # some diesel overlap
+            scores["industrial"] += 1.5 * nv["industrial"]
+            scores["vehicular"] += 0.3 * v_mul  # diesel overlap
         elif so2 > 8:
-            scores["industrial"] += 0.6
+            scores["industrial"] += 0.6 * nv["industrial"]
 
-    # SO2 + NO2 together = strong industrial signal
     if so2 is not None and no2 is not None and so2 > 15 and no2 > 40:
-        scores["industrial"] += 1.0
+        scores["industrial"] += 1.0 * nv["industrial"]
 
     # --- Construction signature: coarse PM ratio ---
-    if pm25 is not None and pm10 is not None and pm25 > 0:
+    # Guard: PM10 < PM2.5 is physically impossible — cross-station averaging artifact, skip
+    pm_ratio_valid = (
+        pm25 is not None and pm10 is not None
+        and pm25 > 0 and pm10 >= pm25
+    )
+    if pm_ratio_valid:
         data_points += 1
-        ratio = pm10 / pm25
+        ratio = pm10 / pm25  # type: ignore[operator]
         if ratio > 3.0:
-            scores["construction"] += 2.0
+            scores["construction"] += 2.0 * nv["construction"]
         elif ratio > 2.5:
-            scores["construction"] += 1.2
+            scores["construction"] += 1.2 * nv["construction"]
         elif ratio > 2.0:
-            scores["construction"] += 0.5
-        # Very fine particles (low ratio) → combustion not dust
+            scores["construction"] += 0.5 * nv["construction"]
         if ratio < 1.5 and pm25 > 60:
-            scores["vehicular"] += 0.4
-            scores["agricultural"] += 0.4
+            scores["vehicular"] += 0.4 * v_mul
+            scores["agricultural"] += 0.4 * nv["agricultural"]
 
-    # --- Agricultural / biomass burning: PM2.5 + CO, low SO2 ---
-    if pm25 is not None and pm25 > 60:
+    # --- Agricultural / biomass burning: PM2.5 high + CO present + low SO2 ---
+    # Skip when PM10 < PM2.5 (cross-station averaging artifact — PM2.5 value untrustworthy)
+    # Also require CO > 2 to distinguish from plain dust/industrial PM
+    pm25_reliable = pm25 is not None and (pm10 is None or pm10 >= pm25)
+    if pm25_reliable and pm25 > 60 and co is not None and co > 2.0:  # type: ignore[operator]
         data_points += 1
-        base_agri = (pm25 - 60) / 100  # scales from 0 at 60 µg/m³
-        if so2 is None or so2 < 15:  # low SO2 = not industrial
-            scores["agricultural"] += min(base_agri * 1.5, 1.5)
-        if co is not None and co > 1.5:
-            scores["agricultural"] += 0.8
+        base_agri = (pm25 - 60) / 100  # type: ignore[operator]
+        if so2 is None or so2 < 15:
+            scores["agricultural"] += min(base_agri * 1.5, 1.5) * nv["agricultural"]
+        if co > 1.5:
+            scores["agricultural"] += 0.8 * nv["agricultural"]
+    elif pm25 is not None and pm25 > 60:
+        data_points += 1  # count PM2.5 data point even when agricultural rule doesn't fire
 
-    # --- Fire signature: NASA hotspots take precedence ---
+    # --- Fire signature: NASA hotspots ---
     if fire_count > 0:
         scores["fire"] += min(fire_count * 0.8, 3.0)
-        scores["agricultural"] += min(fire_count * 0.3, 1.0)  # fire often = crop burning
+        scores["agricultural"] += min(fire_count * 0.3, 1.0)
 
-    # --- Photochemical / O3: secondary vehicular ---
+    # --- Photochemical / O3: secondary vehicular (forms in sunlight) ---
     if o3 is not None:
         data_points += 1
         if o3 > 80:
-            scores["vehicular"] += 1.0
+            scores["vehicular"] += 1.0 * v_mul
         elif o3 > 50:
-            scores["vehicular"] += 0.5
+            scores["vehicular"] += 0.5 * v_mul
 
-    # If we have almost no data, return a neutral fallback
     if data_points == 0:
         return {
             "vehicular": 0.40,
@@ -321,7 +383,11 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     """Run hybrid attribution (chemical fingerprint + wind dispersion) and persist."""
     now = datetime.now(UTC)
 
-    # 1. Latest pollutant readings (avg of last 2h across active stations)
+    # 1. Pollutant readings from the single worst-AQI station (CPCB representative station).
+    #    Using the max-AQI station ensures PM2.5 and PM10 are always from the same source,
+    #    so PM10 >= PM2.5 is guaranteed (no cross-station averaging artifact).
+    #    Gas pollutants (NO2, SO2, CO, O3) are averaged across all valid stations because
+    #    they disperse more uniformly and more stations = better signal.
     pollutant_result = await db.execute(
         text(
             """
@@ -331,16 +397,25 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
                 FROM station_readings sr
                 JOIN stations s ON s.id = sr.station_id
                 WHERE s.city_id = :city_id AND s.is_active = true
+                  AND sr.aqi BETWEEN 0 AND 500
+                  AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
+                  AND sr.ts >= NOW() - INTERVAL '24 hours'
                 ORDER BY sr.station_id, sr.ts DESC
+            ),
+            worst_station AS (
+                SELECT pm25, pm10, aqi
+                FROM latest
+                ORDER BY aqi DESC NULLS LAST
+                LIMIT 1
             )
             SELECT
-                ROUND(AVG(aqi))::int   AS avg_aqi,
-                AVG(pm25)              AS avg_pm25,
-                AVG(pm10)              AS avg_pm10,
-                AVG(no2)               AS avg_no2,
-                AVG(so2)               AS avg_so2,
-                AVG(co)                AS avg_co,
-                AVG(o3)                AS avg_o3
+                (SELECT ROUND(aqi)::int FROM worst_station)  AS avg_aqi,
+                (SELECT pm25 FROM worst_station)             AS avg_pm25,
+                (SELECT pm10 FROM worst_station)             AS avg_pm10,
+                AVG(no2)                                     AS avg_no2,
+                AVG(so2)                                     AS avg_so2,
+                AVG(co)                                      AS avg_co,
+                AVG(o3)                                      AS avg_o3
             FROM latest
             """
         ),
@@ -412,7 +487,12 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     )
     fire_hotspots = fire_result.fetchall()
 
+    # 5b. Traffic congestion boost — query avg congestion ratio from latest poll
+    from app.modules.ingestion.repository import get_avg_congestion_ratio
+    avg_congestion = await get_avg_congestion_ratio(db, city_id)
+
     # 6. Stage 1 — Chemical fingerprint
+    # Vehicular weight driven by real TomTom congestion_ratio; other sources by time-of-day
     fp_scores = _chemical_fingerprint(
         pm25=avg_pm25,
         pm10=avg_pm10,
@@ -421,6 +501,8 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
         co=avg_co,
         o3=avg_o3,
         fire_count=len(fire_hotspots),
+        hour_utc=now.hour,
+        congestion_ratio=avg_congestion,
     )
 
     # 7. Stage 2 — Spatial dispersion
@@ -459,6 +541,8 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
     if avg_o3 is not None:
         notes_parts.append(f"O3={avg_o3:.1f}")
     notes_parts.append(f"confidence={confidence:.2f}")
+    if avg_congestion is not None:
+        notes_parts.append(f"congestion={avg_congestion:.2f}")
     notes = " | ".join(notes_parts)
 
     # 11. Persist

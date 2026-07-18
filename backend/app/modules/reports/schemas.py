@@ -41,6 +41,13 @@ class WardAqiRow(BaseModel):
     reading_count: int
 
 
+class EnforcementStats(BaseModel):
+    completed_period: int
+    dispatched_active: int
+    pending_count: int
+    completed_total: int
+
+
 class ReportSummaryOut(BaseModel):
     city: CityInfo
     period_days: int
@@ -50,3 +57,4 @@ class ReportSummaryOut(BaseModel):
     forecast: ForecastSummary
     attribution: AttributionSummary
     ward_aqi_table: list[WardAqiRow]
+    enforcement_stats: EnforcementStats

@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.advisory import router as advisory_router
 from app.api.v1.attribution import router as attribution_router
@@ -20,6 +23,7 @@ from app.api.v1.users import router as users_router
 from app.core.config import settings
 from app.core.exceptions import VayuShieldError, vayushield_exception_handler
 from app.core.logging import configure_logging, logger
+from app.core.rate_limit import limiter
 from app.db.seed import seed_admin
 
 
@@ -31,6 +35,8 @@ async def _refresh_city(city_id: str) -> None:
     from app.modules.ingestion.service import (
         poll_city_stations,
         poll_fire_hotspots,
+        poll_satellite_aod,
+        poll_traffic,
         poll_weather,
     )
 
@@ -38,12 +44,20 @@ async def _refresh_city(city_id: str) -> None:
         await poll_city_stations(db, city_id)
         await poll_weather(db, city_id)
         await poll_fire_hotspots(db, city_id)
+        await poll_traffic(db, city_id)
 
     async with AsyncSessionLocal() as db:
         await run_forecast(db, city_id)
 
     async with AsyncSessionLocal() as db:
         await compute_attribution(db, city_id)
+
+    async with AsyncSessionLocal() as db:
+        from app.modules.cities.service import compute_vulnerability_scores
+        await compute_vulnerability_scores(db, city_id)
+
+    async with AsyncSessionLocal() as db:
+        await poll_satellite_aod(db, city_id)
 
     logger.info("City refresh complete", city_id=city_id)
 
@@ -113,6 +127,10 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

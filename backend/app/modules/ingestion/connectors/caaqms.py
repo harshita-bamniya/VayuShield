@@ -21,6 +21,23 @@ from app.modules.ingestion.schemas import StationReadingIn
 CPCB_API_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
 WAQI_FEED_URL = "https://api.waqi.info/feed/{slug}/"
 
+
+def _pm25_to_aqi(pm25: float) -> int:
+    """Convert PM2.5 (µg/m³) to India AQI using CPCB breakpoints."""
+    breakpoints = [
+        (0, 30, 0, 50),
+        (30, 60, 51, 100),
+        (60, 90, 101, 200),
+        (90, 120, 201, 300),
+        (120, 250, 301, 400),
+        (250, 500, 401, 500),
+    ]
+    for c_lo, c_hi, i_lo, i_hi in breakpoints:
+        if c_lo <= pm25 <= c_hi:
+            aqi = ((i_hi - i_lo) / (c_hi - c_lo)) * (pm25 - c_lo) + i_lo
+            return round(aqi)
+    return 500
+
 # Maps our internal station_code → WAQI station slug (verified against live API)
 _WAQI_SLUGS: dict[str, str] = {
     # Delhi DPCC network
@@ -44,7 +61,7 @@ _WAQI_SLUGS: dict[str, str] = {
     "MPCB_COLABA":       "india/mumbai/colaba",
     "MPCB_MAZGAON":      "india/mumbai/mazgaon",
     "MPCB_WORLI":        "india/mumbai/worli",
-    "MPCB_CHEMBUR":      "india/mumbai/sion",
+    "MPCB_CHEMBUR":      "india/mumbai/chembur",
     "MPCB_BANDRA":       "india/mumbai/bandra",
     "MPCB_KURLA":        "india/mumbai/kurla",
     "MPCB_ANDHERI":      "india/mumbai/chakala-andheri-east",
@@ -138,20 +155,56 @@ async def fetch_station_reading_waqi(
         except (TypeError, ValueError):
             pass
 
+    # Fallback: compute AQI from PM2.5 if WAQI didn't return one
+    if aqi_int is None and pm25 is not None:
+        aqi_int = _pm25_to_aqi(pm25)
+
+    # Drop obviously invalid AQI values (AQI scale is 0-500)
+    if aqi_int is not None and (aqi_int < 0 or aqi_int > 500):
+        aqi_int = None
+
+    # Drop sensor-saturated PM2.5 readings (> 900 µg/m³ = instrument fault per CPCB)
+    if pm25 is not None and pm25 > 900:
+        pm25 = None
+        aqi_int = None
+
+    # PM10 must always be >= PM2.5 (PM10 includes PM2.5 by definition).
+    # If a station reports PM10 < PM2.5 the PM10 instrument is faulty — drop it.
+    if pm25 is not None and pm10 is not None and pm10 < pm25:
+        logger.warning("PM10 < PM2.5 discarded (instrument fault)", station=station_code, pm25=pm25, pm10=pm10)
+        pm10 = None
+
+    # Fetch gas readings and apply per-pollutant sanity caps
+    no2 = _val("no2")
+    so2 = _val("so2")
+    co  = _val("co")
+    o3  = _val("o3")
+
+    # CO > 40 mg/m³ (≈35 ppm) is beyond any realistic ambient reading and indicates
+    # a stuck or saturated sensor — discard the value entirely
+    if co is not None and co > 40:
+        logger.warning("CO reading discarded (sensor fault)", station=station_code, co=co)
+        co = None
+
+    # NO2 > 180 µg/m³ exceeds CPCB's 1-hour standard; same stuck value repeatedly = sensor fault
+    if no2 is not None and no2 > 180:
+        logger.warning("NO2 reading discarded (sensor fault)", station=station_code, no2=no2)
+        no2 = None
+
     # Nothing useful to store if no pollutant data and no overall AQI
     if pm25 is None and pm10 is None and aqi_int is None:
         return None
 
-    logger.info("WAQI reading fetched", station=station_code, slug=slug, aqi=aqi_raw, pm25=pm25)
+    logger.info("WAQI reading fetched", station=station_code, slug=slug, aqi=aqi_raw, pm25=pm25, co=co)
     return StationReadingIn(
         station_id=station_id,
         ts=ts,
         pm25=pm25,
         pm10=pm10,
-        no2=_val("no2"),
-        so2=_val("so2"),
-        co=_val("co"),
-        o3=_val("o3"),
+        no2=no2,
+        so2=so2,
+        co=co,
+        o3=o3,
         aqi=aqi_int,
     )
 

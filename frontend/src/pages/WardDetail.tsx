@@ -22,6 +22,15 @@ const SOURCE_LABELS: Record<string, string> = {
   other_pct: "Other",
 };
 
+function vulnBadgeClass(tier: string): string {
+  switch (tier) {
+    case "Critical": return "bg-red-600 text-white";
+    case "High":     return "bg-orange-500 text-white";
+    case "Moderate": return "bg-yellow-500 text-slate-900";
+    default:         return "bg-green-600 text-white";
+  }
+}
+
 function aqiBadgeClass(aqi: number | null): string {
   if (!aqi) return "bg-slate-500";
   if (aqi <= 50) return "bg-green-500";
@@ -102,7 +111,7 @@ export default function WardDetail() {
 
       <div className="p-6 max-w-6xl mx-auto space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-slate-800 rounded-xl p-4">
             <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Current AQI</p>
             <div className="flex items-center gap-2">
@@ -136,6 +145,30 @@ export default function WardDetail() {
               Advisories (ward)
             </p>
             <p className="text-2xl font-bold">{ward.advisory_count}</p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-4">
+            <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Vulnerability</p>
+            {ward.vulnerable_site_flags?.vulnerability_tier ? (
+              <div className="space-y-1">
+                <span
+                  className={`inline-block text-xs font-bold px-2 py-1 rounded ${vulnBadgeClass(
+                    ward.vulnerable_site_flags.vulnerability_tier
+                  )}`}
+                >
+                  {ward.vulnerable_site_flags.vulnerability_tier}
+                </span>
+                <p className="text-slate-400 text-xs">
+                  Score:{" "}
+                  <span className="font-mono text-slate-200">
+                    {(ward.vulnerable_site_flags.vulnerability_score as number).toFixed(2)}
+                  </span>
+                </p>
+                <p className="text-slate-500 text-xs">population × AQI exposure</p>
+              </div>
+            ) : (
+              <p className="text-slate-500 text-sm mt-1">Pending next refresh</p>
+            )}
           </div>
         </div>
 

@@ -35,7 +35,7 @@ async def public_city_summary(
         text(
             """
             SELECT
-                AVG(aqi)  AS avg_aqi,
+                MAX(aqi)  AS avg_aqi,
                 AVG(pm25) AS avg_pm25,
                 AVG(pm10) AS avg_pm10,
                 AVG(no2)  AS avg_no2,
@@ -43,7 +43,9 @@ async def public_city_summary(
             FROM station_readings sr
             JOIN stations s ON s.id = sr.station_id
             WHERE s.city_id = :city_id
-              AND sr.ts >= NOW() - INTERVAL '2 hours'
+              AND sr.aqi BETWEEN 0 AND 500
+              AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
+              AND sr.ts >= NOW() - INTERVAL '24 hours'
             """
         ),
         {"city_id": city_id},

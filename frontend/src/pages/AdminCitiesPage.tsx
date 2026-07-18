@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import {
@@ -23,13 +22,6 @@ import {
 } from "@/features/cities/api";
 import type { Ward } from "@/lib/types";
 
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/enforcement", label: "Enforcement", icon: "🚨" },
-  { to: "/advisories", label: "Advisories", icon: "📢" },
-  { to: "/reports", label: "Reports", icon: "📄" },
-  { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
-];
 
 const TIMEZONES = [
   "Asia/Kolkata",
@@ -1375,8 +1367,7 @@ function CityRow({ city }: { city: CityWithCounts }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AdminCitiesPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  useAuth();
   const [showAddCity, setShowAddCity] = useState(false);
 
   const citiesQ = useQuery({
@@ -1391,54 +1382,8 @@ export default function AdminCitiesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 border border-blue-400 border-opacity-40 flex items-center justify-center text-sm">
-              🌬️
-            </div>
-            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
-          </div>
-        </div>
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-500 bg-opacity-20 text-blue-300"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="px-3 py-4 border-t border-slate-800">
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs text-slate-500">Signed in as</p>
-            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-blue-500 bg-opacity-20 text-blue-400 uppercase tracking-wide font-semibold">
-              {user?.role}
-            </span>
-          </div>
-          <button
-            onClick={() => { logout(); navigate("/login"); }}
-            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
+    <div className="flex-1 overflow-auto bg-slate-950 text-white">
+      <main>
         <div className="px-8 py-6 max-w-4xl">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -1483,6 +1428,6 @@ export default function AdminCitiesPage() {
           </div>
         </div>
       </main>
-    </div>
+  </div>
   );
 }
