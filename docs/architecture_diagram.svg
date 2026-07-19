@@ -1,0 +1,932 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1920 1640" width="1920" xmlns="http://www.w3.org/2000/svg"
+     style="font-family:'Segoe UI',system-ui,sans-serif; max-width:100%; height:auto;">
+
+<defs>
+  <!-- Arrow markers -->
+  <marker id="a0" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#334466"/>
+  </marker>
+  <marker id="a1" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#4da6ff55"/>
+  </marker>
+  <marker id="a2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#a855f755"/>
+  </marker>
+  <marker id="a3" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#22c55e55"/>
+  </marker>
+  <marker id="a4" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#eab30855"/>
+  </marker>
+  <marker id="a5" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#6366f155"/>
+  </marker>
+
+  <!-- Layer background gradients -->
+  <linearGradient id="gc" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0d1f3a"/><stop offset="100%" stop-color="#091525"/></linearGradient>
+  <linearGradient id="ge" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#160a2a"/><stop offset="100%" stop-color="#0e0618"/></linearGradient>
+  <linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0a1f14"/><stop offset="100%" stop-color="#060f0a"/></linearGradient>
+  <linearGradient id="gp" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a1200"/><stop offset="100%" stop-color="#0e0900"/></linearGradient>
+  <linearGradient id="gai" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0d00"/><stop offset="100%" stop-color="#0e0600"/></linearGradient>
+  <linearGradient id="gex" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#001a1a"/><stop offset="100%" stop-color="#000e0e"/></linearGradient>
+  <linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0a0a22"/><stop offset="100%" stop-color="#060614"/></linearGradient>
+  <linearGradient id="gi" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0c120c"/><stop offset="100%" stop-color="#070c07"/></linearGradient>
+
+  <!-- Card gradients -->
+  <linearGradient id="cg-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0e2040"/><stop offset="100%" stop-color="#091628"/></linearGradient>
+  <linearGradient id="cg-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a0d30"/><stop offset="100%" stop-color="#0f0720"/></linearGradient>
+  <linearGradient id="cg-a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0c2018"/><stop offset="100%" stop-color="#081410"/></linearGradient>
+  <linearGradient id="cg-p" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#201500"/><stop offset="100%" stop-color="#140e00"/></linearGradient>
+  <linearGradient id="cg-ai" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#201000"/><stop offset="100%" stop-color="#140800"/></linearGradient>
+  <linearGradient id="cg-ex" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#002020"/><stop offset="100%" stop-color="#001414"/></linearGradient>
+  <linearGradient id="cg-d" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0c0c28"/><stop offset="100%" stop-color="#080818"/></linearGradient>
+  <linearGradient id="cg-i" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0c140c"/><stop offset="100%" stop-color="#080c08"/></linearGradient>
+
+  <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+    <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity=".5"/>
+  </filter>
+  <filter id="glow-b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+
+<!-- â–‘â–‘ BACKGROUND â–‘â–‘ -->
+<rect width="1920" height="1640" fill="#060a12"/>
+<!-- Subtle grid -->
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff06" stroke-width="0.5"/>
+</pattern>
+<rect width="1920" height="1640" fill="url(#grid)"/>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• TITLE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<text x="960" y="46" text-anchor="middle" font-size="28" font-weight="700" fill="#e8f0ff" letter-spacing="-0.5">
+  Vayu<tspan fill="#4da6ff">Shield</tspan> AI â€” System Architecture
+</text>
+<text x="960" y="70" text-anchor="middle" font-size="12" fill="#4a6a9a" letter-spacing="2">
+  AI-POWERED URBAN AIR QUALITY INTELLIGENCE Â· ET AI HACKATHON 2026 Â· PROBLEM STATEMENT 5
+</text>
+<!-- Meta pills -->
+<rect x="480" y="80" width="140" height="20" rx="10" fill="#0d2040" stroke="#1e3a6a" stroke-width="1"/>
+<text x="550" y="94" text-anchor="middle" font-size="9" fill="#4da6ff" font-weight="600" letter-spacing="0.5">FASTAPI + REACT</text>
+<rect x="635" y="80" width="200" height="20" rx="10" fill="#0a2018" stroke="#1a4a30" stroke-width="1"/>
+<text x="735" y="94" text-anchor="middle" font-size="9" fill="#4ecb8d" font-weight="600" letter-spacing="0.5">POSTGRESQL / POSTGIS / TIMESCALEDB</text>
+<rect x="850" y="80" width="110" height="20" rx="10" fill="#1a0d00" stroke="#4a2a00" stroke-width="1"/>
+<text x="905" y="94" text-anchor="middle" font-size="9" fill="#ff8c42" font-weight="600" letter-spacing="0.5">CLAUDE AI</text>
+<rect x="975" y="80" width="100" height="20" rx="10" fill="#001a10" stroke="#005030" stroke-width="1"/>
+<circle cx="993" cy="90" r="4" fill="#2ecc71"/>
+<text x="1040" y="94" text-anchor="middle" font-size="9" fill="#26d4b4" font-weight="600" letter-spacing="0.5">LIVE CPCB DATA</text>
+<rect x="1090" y="80" width="130" height="20" rx="10" fill="#0a0a24" stroke="#2a2a6a" stroke-width="1"/>
+<text x="1155" y="94" text-anchor="middle" font-size="9" fill="#7878f0" font-weight="600" letter-spacing="0.5">76 TESTS PASSING</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 1: CLIENT (y=108) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="108" width="1840" height="148" rx="14" fill="url(#gc)" stroke="#1e3a6a" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="108" width="6" height="148" rx="3" fill="#4da6ff"/>
+<!-- Layer label -->
+<text x="60" y="126" font-size="9" font-weight="700" fill="#4da6ff" letter-spacing="2.5">01  CLIENT LAYER</text>
+<line x1="185" y1="122" x2="1870" y2="122" stroke="#4da6ff" stroke-width=".5" opacity=".2"/>
+
+<!-- Card macro: args cx=center-x, cy=top-y, grad, accent, title1, title2, sub1, sub2, badge -->
+<!-- Using x positions for 6 cards: 128, 428, 728, 1028, 1328, 1628 (center-x) -->
+
+<!-- C1: Public Dashboard cx=128 -->
+<g transform="translate(43,131)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".8"/>
+  <!-- Browser icon -->
+  <rect x="52" y="12" width="60" height="40" rx="4" fill="#0d2040" stroke="#4da6ff" stroke-width="1.2"/>
+  <line x1="52" y1="20" x2="112" y2="20" stroke="#4da6ff" stroke-width="1" opacity=".6"/>
+  <circle cx="58" cy="16" r="2" fill="#ff5f57"/><circle cx="65" cy="16" r="2" fill="#febc2e"/><circle cx="72" cy="16" r="2" fill="#28c840"/>
+  <rect x="56" y="24" width="22" height="16" rx="2" fill="#091525"/>
+  <rect x="82" y="24" width="22" height="7" rx="1" fill="#091525"/>
+  <rect x="82" y="33" width="22" height="7" rx="1" fill="#091525"/>
+  <line x1="82" y1="52" x2="82" y2="52" stroke="#4da6ff" stroke-width="1"/>
+  <text x="82" y="70" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">Public Dashboard</text>
+  <text x="82" y="83" text-anchor="middle" font-size="9" fill="#4a6a9a">React + Vite Â· port 5173</text>
+  <rect x="44" y="93" width="76" height="14" rx="7" fill="#0a2040" stroke="#1e3a6a"/>
+  <text x="82" y="103" text-anchor="middle" font-size="8" fill="#4da6ff" font-weight="600">HTTPS Â· TLS 1.3</text>
+</g>
+
+<!-- C2: Admin Portal cx=428 -->
+<g transform="translate(343,131)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".8"/>
+  <!-- Shield+person icon -->
+  <path d="M82,12 L82,12 L62,20 L62,38 Q62,52 82,58 Q102,52 102,38 L102,20 Z" fill="#0d2040" stroke="#4da6ff" stroke-width="1.2"/>
+  <circle cx="82" cy="28" r="7" fill="#091525" stroke="#4da6ff" stroke-width="1"/>
+  <path d="M72,42 Q82,36 92,42" fill="#091525" stroke="#4da6ff" stroke-width="1"/>
+  <text x="82" y="70" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">Admin Portal</text>
+  <text x="82" y="83" text-anchor="middle" font-size="9" fill="#4a6a9a">Sysadmin RBAC</text>
+  <rect x="34" y="93" width="96" height="14" rx="7" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="103" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">JWT Â· ROLE-SCOPED</text>
+</g>
+
+<!-- C3: Inspector Portal cx=728 -->
+<g transform="translate(643,131)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".8"/>
+  <!-- Magnifying glass icon -->
+  <circle cx="75" cy="30" r="16" fill="#0d2040" stroke="#4da6ff" stroke-width="1.5"/>
+  <circle cx="75" cy="30" r="10" fill="#091525" stroke="#4da6ff" stroke-width="1"/>
+  <line x1="86" y1="41" x2="96" y2="51" stroke="#4da6ff" stroke-width="3" stroke-linecap="round"/>
+  <text x="82" y="70" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">Inspector Portal</text>
+  <text x="82" y="83" text-anchor="middle" font-size="9" fill="#4a6a9a">Field Officers Â· Enforcement</text>
+  <rect x="34" y="93" width="96" height="14" rx="7" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="103" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">JWT Â· INSPECTOR ROLE</text>
+</g>
+
+<!-- C4: IVR/TTS cx=1028 -->
+<g transform="translate(943,131)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".8"/>
+  <!-- Microphone icon -->
+  <rect x="70" y="12" width="24" height="32" rx="12" fill="#0d2040" stroke="#4da6ff" stroke-width="1.5"/>
+  <path d="M62,34 Q62,52 82,52 Q102,52 102,34" fill="none" stroke="#4da6ff" stroke-width="1.5"/>
+  <line x1="82" y1="52" x2="82" y2="60" stroke="#4da6ff" stroke-width="1.5"/>
+  <line x1="72" y1="60" x2="92" y2="60" stroke="#4da6ff" stroke-width="1.5"/>
+  <text x="82" y="73" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">IVR / TTS</text>
+  <text x="82" y="86" text-anchor="middle" font-size="9" fill="#4a6a9a">Voice Advisory Â· 4 langs</text>
+  <rect x="26" y="95" width="110" height="12" rx="6" fill="#001a0a" stroke="#005030"/>
+  <text x="82" y="105" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">NO AUTH Â· PUBLIC ENDPOINT</text>
+</g>
+
+<!-- C5: WhatsApp cx=1328 -->
+<g transform="translate(1243,131)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".8"/>
+  <!-- Chat bubble icon -->
+  <rect x="56" y="12" width="52" height="36" rx="8" fill="#0d2040" stroke="#4da6ff" stroke-width="1.5"/>
+  <polygon points="66,48 66,56 74,48" fill="#0d2040" stroke="#4da6ff" stroke-width="1"/>
+  <line x1="65" y1="24" x2="97" y2="24" stroke="#4da6ff" stroke-width="1.5" opacity=".6"/>
+  <line x1="65" y1="32" x2="88" y2="32" stroke="#4da6ff" stroke-width="1.5" opacity=".6"/>
+  <text x="82" y="70" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">WhatsApp Alerts</text>
+  <text x="82" y="83" text-anchor="middle" font-size="9" fill="#4a6a9a">Twilio Â· hi/en/kn/ta</text>
+  <rect x="44" y="93" width="76" height="14" rx="7" fill="#001a0a" stroke="#005030"/>
+  <text x="82" y="103" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">MOCK â†’ LIVE READY</text>
+</g>
+
+<!-- C6: Mobile (planned) cx=1628 -->
+<g transform="translate(1543,131)" opacity=".55">
+  <rect width="165" height="110" rx="9" fill="url(#cg-c)" stroke="#1e3a6a" stroke-width="1" stroke-dasharray="5 3"/>
+  <rect width="165" height="4" rx="2" fill="#4da6ff" opacity=".5"/>
+  <rect x="62" y="10" width="40" height="58" rx="7" fill="#0d2040" stroke="#4da6ff" stroke-width="1.2"/>
+  <circle cx="82" cy="63" r="3" fill="#4da6ff" opacity=".5"/>
+  <rect x="70" y="14" width="24" height="3" rx="1.5" fill="#4da6ff" opacity=".4"/>
+  <rect x="68" y="22" width="28" height="22" rx="2" fill="#091525"/>
+  <text x="82" y="76" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7eb8ff">Mobile App</text>
+  <text x="82" y="89" text-anchor="middle" font-size="9" fill="#4a6a9a">Future Â· PWA</text>
+  <rect x="42" y="96" width="80" height="12" rx="6" fill="#0a0a24" stroke="#2a2a6a"/>
+  <text x="82" y="106" text-anchor="middle" font-size="8" fill="#7878f0" font-weight="600">ROADMAP</text>
+</g>
+
+<!-- â”â”â” ARROWS 1â†’2 â”â”â” -->
+<line x1="128" y1="259" x2="128" y2="285" stroke="#4da6ff44" stroke-width="1.5" marker-end="url(#a1)"/>
+<line x1="428" y1="259" x2="428" y2="285" stroke="#4da6ff44" stroke-width="1.5" marker-end="url(#a1)"/>
+<line x1="728" y1="259" x2="728" y2="285" stroke="#4da6ff44" stroke-width="1.5" marker-end="url(#a1)"/>
+<line x1="960" y1="259" x2="960" y2="285" stroke="#4da6ff44" stroke-width="3" stroke-dasharray="6 3" marker-end="url(#a1)"/>
+<text x="960" y="278" text-anchor="middle" font-size="9" fill="#4da6ff44" letter-spacing="1.5">HTTPS Â· TLS 1.3</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 2: EDGE & SECURITY (y=290) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="290" width="1840" height="148" rx="14" fill="url(#ge)" stroke="#5a1f6e" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="290" width="6" height="148" rx="3" fill="#a855f7"/>
+<text x="60" y="308" font-size="9" font-weight="700" fill="#a855f7" letter-spacing="2.5">02  EDGE &amp; SECURITY LAYER</text>
+<line x1="240" y1="304" x2="1870" y2="304" stroke="#a855f7" stroke-width=".5" opacity=".2"/>
+
+<!-- E1: Nginx -->
+<g transform="translate(43,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <rect x="56" y="10" width="52" height="46" rx="6" fill="#1a0d30" stroke="#a855f7" stroke-width="1.2"/>
+  <text x="82" y="40" text-anchor="middle" font-size="22" font-weight="900" fill="#a855f7" opacity=".9">N</text>
+  <text x="82" y="68" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">Nginx</text>
+  <text x="82" y="81" text-anchor="middle" font-size="9" fill="#6a4a8a">Reverse Proxy Â· SSL Term.</text>
+  <rect x="30" y="91" width="104" height="14" rx="7" fill="#0a1628" stroke="#1e3a6a"/>
+  <text x="82" y="101" text-anchor="middle" font-size="8" fill="#4da6ff" font-weight="600">TLS 1.3 TERMINATION</text>
+</g>
+
+<!-- E2: Rate Limiter -->
+<g transform="translate(343,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <circle cx="82" cy="33" r="22" fill="#1a0d30" stroke="#a855f7" stroke-width="1.5"/>
+  <circle cx="82" cy="33" r="16" fill="#0f0720" stroke="#a855f7" stroke-width=".5" opacity=".5"/>
+  <line x1="82" y1="17" x2="82" y2="33" stroke="#a855f7" stroke-width="2" stroke-linecap="round"/>
+  <line x1="82" y1="33" x2="92" y2="27" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="82" cy="33" r="2.5" fill="#a855f7"/>
+  <text x="82" y="68" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">Rate Limiter</text>
+  <text x="82" y="81" text-anchor="middle" font-size="9" fill="#6a4a8a">slowapi Â· 10/min login</text>
+  <rect x="34" y="91" width="96" height="14" rx="7" fill="#1a0808" stroke="#5a1010"/>
+  <text x="82" y="101" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">REDIS STORAGE</text>
+</g>
+
+<!-- E3: WAF / CORS -->
+<g transform="translate(643,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <path d="M82,11 L62,21 L62,40 Q62,54 82,60 Q102,54 102,40 L102,21 Z" fill="#1a0d30" stroke="#a855f7" stroke-width="1.5"/>
+  <path d="M72,38 L79,45 L95,29" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="82" y="74" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">WAF / CORS</text>
+  <text x="82" y="87" text-anchor="middle" font-size="9" fill="#6a4a8a">Input validation Â· Origin check</text>
+  <rect x="42" y="95" width="80" height="12" rx="6" fill="#0a2018" stroke="#1a5e40"/>
+  <text x="82" y="105" text-anchor="middle" font-size="8" fill="#4ecb8d" font-weight="600">GUARDED</text>
+</g>
+
+<!-- E4: JWT Blacklist -->
+<g transform="translate(943,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <rect x="62" y="10" width="40" height="52" rx="5" fill="#1a0d30" stroke="#a855f7" stroke-width="1.5"/>
+  <path d="M70,22 Q70,12 82,12 Q94,12 94,22" fill="none" stroke="#a855f7" stroke-width="1.5"/>
+  <circle cx="82" cy="38" r="7" fill="#0f0720" stroke="#a855f7" stroke-width="1.2"/>
+  <line x1="82" y1="45" x2="82" y2="52" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="82" y="76" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">JWT Blacklist</text>
+  <text x="82" y="89" text-anchor="middle" font-size="9" fill="#6a4a8a">Redis TTL Â· Logout revocation</text>
+  <rect x="34" y="97" width="96" height="11" rx="5.5" fill="#1a0808" stroke="#5a1010"/>
+  <text x="82" y="106" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">NEW Â· REDIS BLACKLIST</text>
+</g>
+
+<!-- E5: RBAC -->
+<g transform="translate(1243,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <circle cx="82" cy="26" r="12" fill="#1a0d30" stroke="#a855f7" stroke-width="1.5"/>
+  <circle cx="60" cy="32" r="8" fill="#1a0d30" stroke="#a855f7" stroke-width="1"/>
+  <circle cx="104" cy="32" r="8" fill="#1a0d30" stroke="#a855f7" stroke-width="1"/>
+  <path d="M50,52 Q60,42 70,48 Q82,38 94,48 Q104,42 114,52" fill="none" stroke="#a855f7" stroke-width="1.2" opacity=".6"/>
+  <text x="82" y="70" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">RBAC</text>
+  <text x="82" y="83" text-anchor="middle" font-size="9" fill="#6a4a8a">sysadmin Â· admin Â· inspector</text>
+  <rect x="44" y="93" width="76" height="14" rx="7" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="103" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">3 PERMISSION TIERS</text>
+</g>
+
+<!-- E6: City Scope -->
+<g transform="translate(1543,313)">
+  <rect width="165" height="110" rx="9" fill="url(#cg-e)" stroke="#5a1f6e" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#a855f7" opacity=".8"/>
+  <circle cx="82" cy="32" r="20" fill="#1a0d30" stroke="#a855f7" stroke-width="1.5"/>
+  <ellipse cx="82" cy="32" rx="20" ry="8" fill="none" stroke="#a855f7" stroke-width="1" opacity=".6"/>
+  <line x1="82" y1="12" x2="82" y2="52" stroke="#a855f7" stroke-width="1" opacity=".5"/>
+  <circle cx="82" cy="32" r="4" fill="#a855f7"/>
+  <text x="82" y="66" text-anchor="middle" font-size="11.5" font-weight="700" fill="#d4a0f8">City Scope</text>
+  <text x="82" y="79" text-anchor="middle" font-size="9" fill="#6a4a8a">Multi-tenant isolation</text>
+  <text x="82" y="92" text-anchor="middle" font-size="9" fill="#6a4a8a">7 cities Â· data scoped</text>
+  <rect x="44" y="98" width="76" height="10" rx="5" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="107" text-anchor="middle" font-size="7.5" fill="#d97ef0" font-weight="600">MIDDLEWARE</text>
+</g>
+
+<!-- â”â”â” ARROWS 2â†’3 â”â”â” -->
+<line x1="640" y1="438" x2="640" y2="464" stroke="#a855f744" stroke-width="1.5" marker-end="url(#a2)"/>
+<line x1="960" y1="438" x2="960" y2="464" stroke="#a855f744" stroke-width="3" stroke-dasharray="6 3" marker-end="url(#a2)"/>
+<line x1="1280" y1="438" x2="1280" y2="464" stroke="#a855f744" stroke-width="1.5" marker-end="url(#a2)"/>
+<text x="960" y="455" text-anchor="middle" font-size="9" fill="#a855f744" letter-spacing="1.5">VALIDATED Â· AUTHENTICATED REQUEST</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 3: API GATEWAY (y=470) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="470" width="1840" height="138" rx="14" fill="url(#ga)" stroke="#1a5e40" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="470" width="6" height="138" rx="3" fill="#22c55e"/>
+<text x="60" y="488" font-size="9" font-weight="700" fill="#22c55e" letter-spacing="2.5">03  API GATEWAY â€” FASTAPI (port 8000)</text>
+<line x1="310" y1="484" x2="1870" y2="484" stroke="#22c55e" stroke-width=".5" opacity=".2"/>
+
+<!-- A1: FastAPI (wide) -->
+<g transform="translate(43,491)">
+  <rect width="300" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="300" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <!-- Lightning in circle -->
+  <circle cx="50" cy="46" r="26" fill="#0c2018" stroke="#22c55e" stroke-width="1.5"/>
+  <path d="M58,32 L42,50 L53,50 L45,64 L62,44 L50,44 Z" fill="#22c55e" opacity=".9"/>
+  <!-- Content -->
+  <text x="160" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#4ecb8d">FastAPI Application</text>
+  <text x="160" y="44" text-anchor="middle" font-size="10" fill="#3a6a5a">12 routers Â· Pydantic v2 Â· AsyncIO</text>
+  <text x="160" y="58" text-anchor="middle" font-size="10" fill="#3a6a5a">auth Â· users Â· cities Â· ingestion Â· attribution</text>
+  <text x="160" y="72" text-anchor="middle" font-size="10" fill="#3a6a5a">forecasting Â· enforcement Â· advisory Â· reports</text>
+  <rect x="90" y="83" width="80" height="14" rx="7" fill="#0a2018" stroke="#1a5e40"/>
+  <text x="130" y="93" text-anchor="middle" font-size="8" fill="#4ecb8d" font-weight="600">REST / JSON Â· OpenAPI</text>
+</g>
+
+<!-- A2: Auth Endpoints -->
+<g transform="translate(393,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <rect x="56" y="10" width="52" height="50" rx="5" fill="#0c2018" stroke="#22c55e" stroke-width="1.2"/>
+  <text x="82" y="26" text-anchor="middle" font-size="8" fill="#22c55e" opacity=".8">POST /auth/login</text>
+  <text x="82" y="36" text-anchor="middle" font-size="8" fill="#22c55e" opacity=".8">POST /auth/refresh</text>
+  <text x="82" y="46" text-anchor="middle" font-size="8" fill="#22c55e" opacity=".8">POST /auth/logout</text>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">Auth Endpoints</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">JWT issue Â· refresh Â· revoke</text>
+  <rect x="34" y="91" width="96" height="11" rx="5.5" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">JWT BLACKLIST</text>
+</g>
+
+<!-- A3: Swagger/OpenAPI -->
+<g transform="translate(608,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <rect x="56" y="10" width="52" height="50" rx="5" fill="#0c2018" stroke="#22c55e" stroke-width="1.2"/>
+  <line x1="66" y1="22" x2="98" y2="22" stroke="#22c55e" stroke-width="1.5" opacity=".7"/>
+  <line x1="66" y1="30" x2="90" y2="30" stroke="#22c55e" stroke-width="1.5" opacity=".7"/>
+  <line x1="66" y1="38" x2="94" y2="38" stroke="#22c55e" stroke-width="1.5" opacity=".7"/>
+  <line x1="66" y1="46" x2="86" y2="46" stroke="#22c55e" stroke-width="1.5" opacity=".7"/>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">OpenAPI Docs</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">/docs Â· /redoc Â· Auto-schema</text>
+  <rect x="40" y="91" width="84" height="11" rx="5.5" fill="#0a2018" stroke="#1a5e40"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#4ecb8d" font-weight="600">SWAGGER UI</text>
+</g>
+
+<!-- A4: Middleware -->
+<g transform="translate(823,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <!-- Funnel shape -->
+  <path d="M60,14 L104,14 L95,30 L95,56 L68,56 L68,30 Z" fill="#0c2018" stroke="#22c55e" stroke-width="1.5"/>
+  <line x1="68" y1="35" x2="95" y2="35" stroke="#22c55e" stroke-width="1" opacity=".5"/>
+  <line x1="72" y1="44" x2="91" y2="44" stroke="#22c55e" stroke-width="1" opacity=".5"/>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">Middleware Stack</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">City scope Â· CORS Â· Logging</text>
+  <rect x="30" y="91" width="104" height="11" rx="5.5" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">PER-REQUEST PIPELINE</text>
+</g>
+
+<!-- A5: Health Check -->
+<g transform="translate(1038,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <path d="M58,38 L68,38 L74,20 L80,56 L86,32 L92,38 L106,38" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">Health Check</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">GET /health Â· DB Â· Redis</text>
+  <rect x="36" y="91" width="90" height="11" rx="5.5" fill="#001a0a" stroke="#005030"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">LIVE MONITORING</text>
+</g>
+
+<!-- A6: Error Handling -->
+<g transform="translate(1253,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <rect x="56" y="12" width="52" height="44" rx="5" fill="#0c2018" stroke="#22c55e" stroke-width="1.2"/>
+  <text x="82" y="30" text-anchor="middle" font-size="9" fill="#22c55e">401 Unauthorized</text>
+  <text x="82" y="42" text-anchor="middle" font-size="9" fill="#22c55e">403 Forbidden</text>
+  <text x="82" y="54" text-anchor="middle" font-size="9" fill="#22c55e">422 Validation</text>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">Error Handling</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">Structured JSON errors</text>
+  <rect x="40" y="91" width="84" height="11" rx="5.5" fill="#0a2018" stroke="#1a5e40"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#4ecb8d" font-weight="600">RFC 7807</text>
+</g>
+
+<!-- A7: structlog -->
+<g transform="translate(1468,491)">
+  <rect width="165" height="104" rx="9" fill="url(#cg-a)" stroke="#1a5e40" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#22c55e" opacity=".8"/>
+  <rect x="52" y="10" width="60" height="46" rx="4" fill="#0c2018" stroke="#22c55e" stroke-width="1.2"/>
+  <line x1="58" y1="22" x2="106" y2="22" stroke="#22c55e" stroke-width="1" opacity=".6"/>
+  <text x="82" y="34" text-anchor="middle" font-size="7.5" fill="#22c55e">{level: INFO</text>
+  <text x="82" y="44" text-anchor="middle" font-size="7.5" fill="#22c55e"> event: request</text>
+  <text x="82" y="54" text-anchor="middle" font-size="7.5" fill="#22c55e"> latency: 12ms}</text>
+  <text x="82" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#4ecb8d">Structured Logs</text>
+  <text x="82" y="85" text-anchor="middle" font-size="9" fill="#3a6a5a">structlog Â· JSON Â· Async</text>
+  <rect x="36" y="91" width="90" height="11" rx="5.5" fill="#0a2018" stroke="#1a5e40"/>
+  <text x="82" y="100" text-anchor="middle" font-size="8" fill="#4ecb8d" font-weight="600">PROMETHEUS-READY</text>
+</g>
+
+
+<!-- â”â”â” ARROWS 3â†’4 â”â”â” -->
+<line x1="350" y1="608" x2="220" y2="634" stroke="#22c55e44" stroke-width="1.2" marker-end="url(#a3)"/>
+<line x1="600" y1="608" x2="600" y2="634" stroke="#22c55e44" stroke-width="1.2" marker-end="url(#a3)"/>
+<line x1="960" y1="608" x2="960" y2="634" stroke="#22c55e44" stroke-width="3" stroke-dasharray="6 3" marker-end="url(#a3)"/>
+<line x1="1300" y1="608" x2="1300" y2="634" stroke="#22c55e44" stroke-width="1.2" marker-end="url(#a3)"/>
+<line x1="1600" y1="608" x2="1700" y2="634" stroke="#22c55e44" stroke-width="1.2" marker-end="url(#a3)"/>
+<text x="960" y="627" text-anchor="middle" font-size="9" fill="#22c55e44" letter-spacing="1.5">AUTHENTICATED Â· CITY-SCOPED REQUEST</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 4: APPLICATION MODULES (y=640) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="640" width="1840" height="148" rx="14" fill="url(#gp)" stroke="#6b4a00" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="640" width="6" height="148" rx="3" fill="#eab308"/>
+<text x="60" y="658" font-size="9" font-weight="700" fill="#eab308" letter-spacing="2.5">04  APPLICATION MODULES (DOMAIN SERVICES)</text>
+<line x1="390" y1="654" x2="1870" y2="654" stroke="#eab308" stroke-width=".5" opacity=".2"/>
+
+<!-- P1: Ingestion -->
+<g transform="translate(43,661)">
+  <rect width="200" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <circle cx="50" cy="38" r="14" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <circle cx="90" cy="28" r="10" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <circle cx="130" cy="36" r="12" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <line x1="50" y1="52" x2="50" y2="38" stroke="#eab308" stroke-width="1.5"/>
+  <line x1="90" y1="52" x2="90" y2="28" stroke="#eab308" stroke-width="1.5"/>
+  <line x1="130" y1="52" x2="130" y2="36" stroke="#eab308" stroke-width="1.5"/>
+  <line x1="36" y1="52" x2="164" y2="52" stroke="#eab308" stroke-width="1.5"/>
+  <text x="100" y="72" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Ingestion Service</text>
+  <text x="100" y="85" text-anchor="middle" font-size="9" fill="#6a4a18">CAAQMS WAQI Poller Â· 30-min</text>
+  <rect x="40" y="94" width="120" height="13" rx="6.5" fill="#001a0a" stroke="#005030"/>
+  <text x="100" y="104" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">LIVE Â· 7 CITIES Â· REAL DATA</text>
+</g>
+
+<!-- P2: Attribution -->
+<g transform="translate(263,661)">
+  <rect width="200" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <circle cx="100" cy="34" r="6" fill="#f5c842"/>
+  <path d="M100,34 L68,56" stroke="#eab308" stroke-width="2" marker-end="url(#a4)"/>
+  <path d="M100,34 L132,56" stroke="#eab308" stroke-width="2" marker-end="url(#a4)"/>
+  <path d="M100,34 L100,58" stroke="#eab308" stroke-width="2" marker-end="url(#a4)"/>
+  <path d="M100,34 L76,60" stroke="#eab308" stroke-width="1.5" opacity=".5" marker-end="url(#a4)"/>
+  <path d="M100,34 L124,60" stroke="#eab308" stroke-width="1.5" opacity=".5" marker-end="url(#a4)"/>
+  <text x="100" y="75" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Attribution Engine</text>
+  <text x="100" y="88" text-anchor="middle" font-size="9" fill="#6a4a18">Wind Dispersion Â· Haversine</text>
+  <rect x="28" y="96" width="144" height="12" rx="6" fill="#1a0c00" stroke="#6b2d00"/>
+  <text x="100" y="106" text-anchor="middle" font-size="8" fill="#ff8c42" font-weight="600">PHYSICS-BASED SOURCE RANKING</text>
+</g>
+
+<!-- P3: Forecasting -->
+<g transform="translate(483,661)">
+  <rect width="200" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <path d="M22,50 C30,30 40,40 52,26 C64,12 74,44 88,34 C102,24 112,48 126,38 C140,28 150,48 164,34" fill="none" stroke="#eab308" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="164" cy="34" r="4" fill="#eab308"/>
+  <text x="100" y="72" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Forecasting Engine</text>
+  <text x="100" y="85" text-anchor="middle" font-size="9" fill="#6a4a18">Diurnal-v1 Â· 72h Â· Ward-hyperlocal</text>
+  <rect x="38" y="94" width="124" height="13" rx="6.5" fill="#1a0808" stroke="#5a1010"/>
+  <text x="100" y="104" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">REDIS CACHE Â· 1H TTL</text>
+</g>
+
+<!-- P4: Enforcement -->
+<g transform="translate(703,661)">
+  <rect width="200" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <path d="M100,14 L108,38 L134,38 L114,52 L122,76 L100,62 L78,76 L86,52 L66,38 L92,38 Z" fill="#201500" stroke="#eab308" stroke-width="1.5"/>
+  <text x="100" y="90" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Enforcement Queue</text>
+  <text x="100" y="103" text-anchor="middle" font-size="9" fill="#6a4a18">Dispatch Â· Track Â· Complete</text>
+</g>
+
+<!-- P5: Advisory -->
+<g transform="translate(923,661)">
+  <rect width="200" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <rect x="40" y="14" width="120" height="46" rx="8" fill="#201500" stroke="#eab308" stroke-width="1.5"/>
+  <polygon points="50,60 50,72 62,60" fill="#201500" stroke="#eab308" stroke-width="1"/>
+  <line x1="54" y1="28" x2="146" y2="28" stroke="#eab308" stroke-width="1.5" opacity=".6"/>
+  <line x1="54" y1="38" x2="130" y2="38" stroke="#eab308" stroke-width="1.5" opacity=".6"/>
+  <line x1="54" y1="48" x2="138" y2="48" stroke="#eab308" stroke-width="1.5" opacity=".6"/>
+  <text x="100" y="83" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Advisory Engine</text>
+  <text x="100" y="96" text-anchor="middle" font-size="9" fill="#6a4a18">Claude AI Â· 4 langs Â· WhatsApp</text>
+  <rect x="40" y="102" width="120" height="10" rx="5" fill="#1a0c00" stroke="#6b2d00"/>
+  <text x="100" y="111" text-anchor="middle" font-size="7.5" fill="#ff8c42" font-weight="600">AI-GENERATED ADVISORIES</text>
+</g>
+
+<!-- P6: Reports -->
+<g transform="translate(1143,661)">
+  <rect width="180" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="180" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <rect x="42" y="12" width="96" height="52" rx="5" fill="#201500" stroke="#eab308" stroke-width="1.5"/>
+  <line x1="52" y1="24" x2="128" y2="24" stroke="#eab308" stroke-width="1.2" opacity=".6"/>
+  <line x1="52" y1="32" x2="128" y2="32" stroke="#eab308" stroke-width="1.2" opacity=".6"/>
+  <line x1="52" y1="40" x2="128" y2="40" stroke="#eab308" stroke-width="1.2" opacity=".6"/>
+  <line x1="52" y1="48" x2="100" y2="48" stroke="#eab308" stroke-width="1.2" opacity=".6"/>
+  <text x="90" y="78" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Reports</text>
+  <text x="90" y="91" text-anchor="middle" font-size="9" fill="#6a4a18">AQI trend Â· PDF Â· Compliance</text>
+  <rect x="26" y="98" width="128" height="10" rx="5" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="90" y="107" text-anchor="middle" font-size="7.5" fill="#d97ef0" font-weight="600">AUTH GATED</text>
+</g>
+
+<!-- P7: Compare -->
+<g transform="translate(1343,661)">
+  <rect width="180" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="180" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <rect x="30" y="20" width="22" height="38" rx="2" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <rect x="60" y="12" width="22" height="46" rx="2" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <rect x="90" y="26" width="22" height="32" rx="2" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <rect x="120" y="18" width="22" height="40" rx="2" fill="#201500" stroke="#eab308" stroke-width="1.2"/>
+  <line x1="26" y1="60" x2="148" y2="60" stroke="#eab308" stroke-width="1" opacity=".4"/>
+  <text x="90" y="76" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">City Compare</text>
+  <text x="90" y="89" text-anchor="middle" font-size="9" fill="#6a4a18">7 cities Â· sysadmin Â· AQI</text>
+  <rect x="26" y="96" width="128" height="12" rx="6" fill="#220d28" stroke="#5a1f6e"/>
+  <text x="90" y="106" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">SYSADMIN ONLY</text>
+</g>
+
+<!-- P8: Public API -->
+<g transform="translate(1543,661)">
+  <rect width="180" height="110" rx="9" fill="url(#cg-p)" stroke="#6b4a00" stroke-width="1"/>
+  <rect width="165" height="4" rx="2" fill="#eab308" opacity=".8"/>
+  <circle cx="90" cy="36" r="24" fill="#201500" stroke="#eab308" stroke-width="1.5"/>
+  <ellipse cx="90" cy="36" rx="24" ry="10" fill="none" stroke="#eab308" stroke-width="1" opacity=".5"/>
+  <line x1="90" y1="12" x2="90" y2="60" stroke="#eab308" stroke-width="1" opacity=".4"/>
+  <text x="90" y="76" text-anchor="middle" font-size="11.5" font-weight="700" fill="#f5c842">Public API</text>
+  <text x="90" y="89" text-anchor="middle" font-size="9" fill="#6a4a18">No-auth AQI reads</text>
+  <rect x="26" y="96" width="128" height="12" rx="6" fill="#001a0a" stroke="#005030"/>
+  <text x="90" y="106" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">OPEN ENDPOINTS</text>
+</g>
+
+<!-- â”â”â” ARROWS 4â†’5 â”â”â” -->
+<line x1="350" y1="788" x2="280" y2="814" stroke="#eab30844" stroke-width="1.5" marker-end="url(#a4)"/>
+<line x1="800" y1="788" x2="730" y2="814" stroke="#eab30844" stroke-width="1.5" marker-end="url(#a4)"/>
+<line x1="960" y1="788" x2="960" y2="814" stroke="#eab30844" stroke-width="3" stroke-dasharray="5 3" marker-end="url(#a4)"/>
+<line x1="1200" y1="788" x2="1280" y2="814" stroke="#eab30844" stroke-width="1.5" marker-end="url(#a4)"/>
+<text x="960" y="806" text-anchor="middle" font-size="9" fill="#eab30844" letter-spacing="1.5">AI INFERENCE Â· EXTERNAL APIs Â· DATA READS</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 5A: AI/ML (y=820, w=890) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="820" width="896" height="150" rx="14" fill="url(#gai)" stroke="#8b3a00" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="820" width="6" height="150" rx="3" fill="#f97316"/>
+<text x="60" y="838" font-size="9" font-weight="700" fill="#f97316" letter-spacing="2.5">05  AI / ML ENGINE</text>
+<line x1="200" y1="834" x2="926" y2="834" stroke="#f97316" stroke-width=".5" opacity=".2"/>
+
+<!-- AI1: Claude API -->
+<g transform="translate(55,842)">
+  <rect width="190" height="112" rx="9" fill="url(#cg-ai)" stroke="#6b2d00" stroke-width="1"/>
+  <rect width="190" height="4" rx="2" fill="#f97316" opacity=".8"/>
+  <!-- Claude anthropic logo shape -->
+  <circle cx="95" cy="36" r="24" fill="#1a0c00" stroke="#f97316" stroke-width="1.5"/>
+  <text x="95" y="42" text-anchor="middle" font-size="22" font-weight="900" fill="#f97316">C</text>
+  <text x="95" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#ffc194">Claude API</text>
+  <text x="95" y="83" text-anchor="middle" font-size="9" fill="#6a3a18">claude-sonnet-4-6</text>
+  <text x="95" y="96" text-anchor="middle" font-size="9" fill="#6a3a18">Advisory Â· Evidence briefs</text>
+  <rect x="30" y="102" width="130" height="10" rx="5" fill="#1a0c00" stroke="#6b2d00"/>
+  <text x="95" y="111" text-anchor="middle" font-size="7.5" fill="#ff8c42" font-weight="600">ANTHROPIC API Â· FALLBACK TEMPLATES</text>
+</g>
+
+<!-- AI2: Diurnal-v1 -->
+<g transform="translate(265,842)">
+  <rect width="190" height="112" rx="9" fill="url(#cg-ai)" stroke="#6b2d00" stroke-width="1"/>
+  <rect width="190" height="4" rx="2" fill="#f97316" opacity=".8"/>
+  <path d="M20,52 C30,20 48,60 65,36 C82,12 100,52 117,36 C134,20 152,52 170,40" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="170" cy="40" r="4" fill="#f97316"/>
+  <text x="95" y="72" text-anchor="middle" font-size="11" font-weight="700" fill="#ffc194">Diurnal-v1 Model</text>
+  <text x="95" y="85" text-anchor="middle" font-size="9" fill="#6a3a18">72h AQI forecast Â· Hourly means</text>
+  <text x="95" y="98" text-anchor="middle" font-size="9" fill="#6a3a18">Needs 7d history for variation</text>
+  <rect x="38" y="103" width="114" height="9" rx="4.5" fill="#1a0c00" stroke="#6b2d00"/>
+  <text x="95" y="111" text-anchor="middle" font-size="7.5" fill="#ff8c42" font-weight="600">STATISTICAL Â· SEED-HISTORY ENDPOINT</text>
+</g>
+
+<!-- AI3: Wind Attribution -->
+<g transform="translate(475,842)">
+  <rect width="190" height="112" rx="9" fill="url(#cg-ai)" stroke="#6b2d00" stroke-width="1"/>
+  <rect width="190" height="4" rx="2" fill="#f97316" opacity=".8"/>
+  <!-- Wind arrows radiating -->
+  <circle cx="95" cy="38" r="8" fill="#f97316"/>
+  <path d="M95,38 L60,18" stroke="#f97316" stroke-width="2" marker-end="url(#a5)"/>
+  <path d="M95,38 L130,18" stroke="#f97316" stroke-width="2" marker-end="url(#a5)"/>
+  <path d="M95,38 L75,60" stroke="#f97316" stroke-width="1.5" opacity=".6" marker-end="url(#a5)"/>
+  <path d="M95,38 L115,60" stroke="#f97316" stroke-width="1.5" opacity=".6" marker-end="url(#a5)"/>
+  <text x="95" y="78" text-anchor="middle" font-size="11" font-weight="700" fill="#ffc194">Wind Attribution</text>
+  <text x="95" y="91" text-anchor="middle" font-size="9" fill="#6a3a18">Haversine Â· Cosine alignment</text>
+  <text x="95" y="104" text-anchor="middle" font-size="9" fill="#6a3a18">Dominant source ranking</text>
+</g>
+
+<!-- AI4: Ward Hyperlocal -->
+<g transform="translate(685,842)">
+  <rect width="200" height="112" rx="9" fill="url(#cg-ai)" stroke="#6b2d00" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#f97316" opacity=".8"/>
+  <rect x="30" y="12" width="60" height="46" rx="4" fill="#1a0c00" stroke="#f97316" stroke-width="1"/>
+  <rect x="92" y="12" width="60" height="46" rx="4" fill="#1a0c00" stroke="#f97316" stroke-width="1"/>
+  <rect x="30" y="60" width="60" height="24" rx="4" fill="#1a0c00" stroke="#f97316" stroke-width=".8" opacity=".7"/>
+  <rect x="92" y="60" width="60" height="24" rx="4" fill="#1a0c00" stroke="#f97316" stroke-width=".8" opacity=".7"/>
+  <line x1="92" y1="35" x2="90" y2="35" stroke="#f97316" stroke-width="1"/>
+  <line x1="100" y1="58" x2="100" y2="62" stroke="#f97316" stroke-width="1"/>
+  <text x="100" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#ffc194">Ward-Hyperlocal-v1</text>
+  <text x="100" y="109" text-anchor="middle" font-size="9" fill="#6a3a18">288 Delhi Â· 1099 total wards</text>
+</g>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 5B: EXTERNAL DATA (y=820, x=956, w=924) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="956" y="820" width="924" height="150" rx="14" fill="url(#gex)" stroke="#006060" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="956" y="820" width="6" height="150" rx="3" fill="#14b8a6"/>
+<text x="976" y="838" font-size="9" font-weight="700" fill="#14b8a6" letter-spacing="2.5">06  EXTERNAL DATA SOURCES</text>
+<line x1="1170" y1="834" x2="1870" y2="834" stroke="#14b8a6" stroke-width=".5" opacity=".2"/>
+
+<!-- EX1: WAQI/CPCB -->
+<g transform="translate(970,842)">
+  <rect width="162" height="112" rx="9" fill="url(#cg-ex)" stroke="#004848" stroke-width="1"/>
+  <rect width="162" height="4" rx="2" fill="#14b8a6" opacity=".8"/>
+  <rect x="18" y="28" width="18" height="26" rx="2" fill="#002020" stroke="#14b8a6" stroke-width="1"/>
+  <rect x="44" y="16" width="18" height="38" rx="2" fill="#002020" stroke="#14b8a6" stroke-width="1"/>
+  <rect x="70" y="22" width="18" height="32" rx="2" fill="#002020" stroke="#14b8a6" stroke-width="1"/>
+  <rect x="96" y="10" width="18" height="44" rx="2" fill="#002020" stroke="#14b8a6" stroke-width="1"/>
+  <line x1="14" y1="56" x2="118" y2="56" stroke="#14b8a6" stroke-width="1" opacity=".5"/>
+  <circle cx="140" cy="20" r="6" fill="#2ecc71"/>
+  <text x="81" y="73" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">WAQI / CPCB</text>
+  <text x="81" y="86" text-anchor="middle" font-size="9" fill="#1a5a5a">Real AQI Â· 7 Indian cities</text>
+  <rect x="22" y="94" width="118" height="16" rx="8" fill="#001a0a" stroke="#005030"/>
+  <text x="81" y="106" text-anchor="middle" font-size="8.5" fill="#26d4b4" font-weight="700">â¬¤ LIVE REAL DATA</text>
+</g>
+
+<!-- EX2: Open-Meteo -->
+<g transform="translate(1150,842)">
+  <rect width="162" height="112" rx="9" fill="url(#cg-ex)" stroke="#004848" stroke-width="1"/>
+  <rect width="162" height="4" rx="2" fill="#14b8a6" opacity=".8"/>
+  <path d="M30,38 C40,20 60,20 70,38 C80,20 100,20 110,38 C110,48 100,56 81,56 C62,56 30,48 30,38 Z" fill="#002020" stroke="#14b8a6" stroke-width="1.5"/>
+  <path d="M50,56 C40,56 30,60 30,66" fill="none" stroke="#14b8a6" stroke-width="1" opacity=".5"/>
+  <path d="M112,56 C122,56 132,60 132,66" fill="none" stroke="#14b8a6" stroke-width="1" opacity=".5"/>
+  <text x="81" y="76" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">Open-Meteo</text>
+  <text x="81" y="89" text-anchor="middle" font-size="9" fill="#1a5a5a">Wind Â· Temp Â· Humidity</text>
+  <rect x="22" y="97" width="118" height="13" rx="6.5" fill="#001a0a" stroke="#005030"/>
+  <text x="81" y="107" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">REAL Â· HOURLY FORECAST</text>
+</g>
+
+<!-- EX3: NASA FIRMS -->
+<g transform="translate(1330,842)">
+  <rect width="162" height="112" rx="9" fill="url(#cg-ex)" stroke="#004848" stroke-width="1"/>
+  <rect width="162" height="4" rx="2" fill="#14b8a6" opacity=".8"/>
+  <path d="M81,12 C81,12 66,28 66,40 C66,50 73,58 81,58 C89,58 96,50 96,40 C96,28 81,12 81,12 Z" fill="#002020" stroke="#14b8a6" stroke-width="1.5"/>
+  <path d="M74,42 C74,46 77,50 81,50 C85,50 88,46 88,42" fill="none" stroke="#14b8a6" stroke-width="1.2"/>
+  <text x="81" y="73" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">NASA FIRMS</text>
+  <text x="81" y="86" text-anchor="middle" font-size="9" fill="#1a5a5a">Fire hotspots Â· VIIRS</text>
+  <rect x="22" y="95" width="118" height="15" rx="7.5" fill="#1a0808" stroke="#5a1010"/>
+  <text x="81" y="106" text-anchor="middle" font-size="8" fill="#ff8c42" font-weight="600">FIRMS MAP KEY ACTIVE</text>
+</g>
+
+<!-- EX4: TomTom -->
+<g transform="translate(1510,842)">
+  <rect width="162" height="112" rx="9" fill="url(#cg-ex)" stroke="#004848" stroke-width="1"/>
+  <rect width="162" height="4" rx="2" fill="#14b8a6" opacity=".8"/>
+  <path d="M40,54 L50,38 L60,44 L72,30 L84,36 L94,26 L104,36 L116,42 L126,30" fill="none" stroke="#14b8a6" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="40" cy="54" r="4" fill="#14b8a6" opacity=".6"/>
+  <circle cx="126" cy="30" r="4" fill="#14b8a6"/>
+  <text x="81" y="74" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">TomTom Traffic</text>
+  <text x="81" y="87" text-anchor="middle" font-size="9" fill="#1a5a5a">Congestion ratio Â· Roads</text>
+  <rect x="22" y="96" width="118" height="14" rx="7" fill="#001a0a" stroke="#005030"/>
+  <text x="81" y="107" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">TRAFFIC API CONNECTED</text>
+</g>
+
+<!-- EX5: NASA LAADS -->
+<g transform="translate(1690,842)">
+  <rect width="174" height="112" rx="9" fill="url(#cg-ex)" stroke="#004848" stroke-width="1"/>
+  <rect width="174" height="4" rx="2" fill="#14b8a6" opacity=".8"/>
+  <circle cx="87" cy="36" r="20" fill="#002020" stroke="#14b8a6" stroke-width="1.5"/>
+  <ellipse cx="87" cy="36" rx="28" ry="8" fill="none" stroke="#14b8a6" stroke-width="1.2" opacity=".6"/>
+  <ellipse cx="87" cy="36" rx="20" ry="4" fill="none" stroke="#14b8a6" stroke-width="1"/>
+  <circle cx="87" cy="36" r="6" fill="#002020" stroke="#14b8a6" stroke-width="1"/>
+  <text x="87" y="70" text-anchor="middle" font-size="11" font-weight="700" fill="#5eead4">NASA MODIS</text>
+  <text x="87" y="83" text-anchor="middle" font-size="9" fill="#1a5a5a">Satellite AOD Â· LAADS</text>
+  <rect x="26" y="95" width="122" height="14" rx="7" fill="#001a0a" stroke="#005030"/>
+  <text x="87" y="106" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">EARTHDATA TOKEN</text>
+</g>
+
+
+<!-- â”â”â” ARROWS 5â†’6 â”â”â” -->
+<line x1="400" y1="970" x2="300" y2="996" stroke="#6366f144" stroke-width="1.5" marker-end="url(#a5)"/>
+<line x1="960" y1="970" x2="960" y2="996" stroke="#6366f144" stroke-width="3" stroke-dasharray="5 3" marker-end="url(#a5)"/>
+<line x1="1400" y1="970" x2="1500" y2="996" stroke="#6366f144" stroke-width="1.5" marker-end="url(#a5)"/>
+<text x="960" y="988" text-anchor="middle" font-size="9" fill="#6366f144" letter-spacing="1.5">READ / WRITE Â· PERSIST Â· CACHE</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 6: DATA LAYER (y=1000) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="1000" width="1840" height="150" rx="14" fill="url(#gd)" stroke="#2d2d7a" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="1000" width="6" height="150" rx="3" fill="#6366f1"/>
+<text x="60" y="1018" font-size="9" font-weight="700" fill="#6366f1" letter-spacing="2.5">07  DATA LAYER</text>
+<line x1="185" y1="1014" x2="1870" y2="1014" stroke="#6366f1" stroke-width=".5" opacity=".2"/>
+
+<!-- D1: TimescaleDB (wide) -->
+<g transform="translate(55,1022)">
+  <rect width="620" height="112" rx="9" fill="url(#cg-d)" stroke="#2a2a7a" stroke-width="1"/>
+  <rect width="620" height="4" rx="2" fill="#6366f1" opacity=".8"/>
+  <!-- DB cylinder -->
+  <ellipse cx="62" cy="22" rx="30" ry="8" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5"/>
+  <rect x="32" y="22" width="60" height="40" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5" stroke-top="none"/>
+  <ellipse cx="62" cy="62" rx="30" ry="8" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="32" y1="36" x2="92" y2="36" stroke="#6366f1" stroke-width=".8" opacity=".3"/>
+  <line x1="32" y1="50" x2="92" y2="50" stroke="#6366f1" stroke-width=".8" opacity=".3"/>
+  <!-- Labels -->
+  <text x="310" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="#8b8bf0">TimescaleDB / PostgreSQL + PostGIS</text>
+  <text x="310" y="42" text-anchor="middle" font-size="10" fill="#4a4a8a">Hypertables Â· Time-series compression Â· GiST spatial index</text>
+  <text x="310" y="56" text-anchor="middle" font-size="9.5" fill="#3a3a7a">station_readings  Â·  attributions  Â·  forecasts  Â·  enforcement_queue  Â·  advisories  Â·  wards</text>
+  <text x="310" y="70" text-anchor="middle" font-size="9.5" fill="#3a3a7a">cities  Â·  stations  Â·  users  Â·  satellite_data  Â·  fire_hotspots  Â·  traffic_segments</text>
+  <rect x="170" y="78" width="120" height="12" rx="6" fill="#1a0808" stroke="#5a1010"/>
+  <text x="230" y="88" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">port 5432 Â· TIMESCALEDB</text>
+  <rect x="320" y="78" width="120" height="12" rx="6" fill="#001a0a" stroke="#005030"/>
+  <text x="380" y="88" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">POSTGIS GIST INDEX</text>
+  <rect x="70" y="98" width="100" height="10" rx="5" fill="#0c0c28" stroke="#2a2a7a"/>
+  <text x="120" y="107" text-anchor="middle" font-size="7.5" fill="#6366f1" font-weight="600">DOCKER CONTAINER</text>
+</g>
+
+<!-- D2: Redis -->
+<g transform="translate(695,1022)">
+  <rect width="340" height="112" rx="9" fill="url(#cg-d)" stroke="#2a2a7a" stroke-width="1"/>
+  <rect width="340" height="4" rx="2" fill="#6366f1" opacity=".8"/>
+  <!-- Redis cylinder with lightning -->
+  <ellipse cx="60" cy="22" rx="30" ry="8" fill="#0c0c28" stroke="#ff6b6b" stroke-width="1.5"/>
+  <rect x="30" y="22" width="60" height="38" fill="#0c0c28" stroke="#ff6b6b" stroke-width="1.5"/>
+  <ellipse cx="60" cy="60" rx="30" ry="8" fill="#0c0c28" stroke="#ff6b6b" stroke-width="1.5"/>
+  <path d="M65,28 L54,46 L63,46 L57,62 L70,40 L60,40 Z" fill="#ff6b6b" opacity=".9"/>
+  <text x="200" y="24" text-anchor="middle" font-size="12" font-weight="700" fill="#ff8c8c">Redis Cache</text>
+  <text x="200" y="40" text-anchor="middle" font-size="9.5" fill="#4a2a2a">â‘  JWT Blacklist â€” token:TTL revocation</text>
+  <text x="200" y="54" text-anchor="middle" font-size="9.5" fill="#4a2a2a">â‘¡ Forecast Cache â€” 7 keys, 1h TTL</text>
+  <text x="200" y="68" text-anchor="middle" font-size="9.5" fill="#4a2a2a">â‘¢ Rate Limit counters â€” slowapi storage</text>
+  <rect x="100" y="80" width="140" height="12" rx="6" fill="#1a0808" stroke="#5a1010"/>
+  <text x="170" y="90" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">port 6379 Â· DOCKER CONTAINER</text>
+  <rect x="100" y="96" width="140" height="14" rx="7" fill="#0c0c28" stroke="#2a2a7a"/>
+  <text x="170" y="107" text-anchor="middle" font-size="8" fill="#8b8bf0" font-weight="600">3 ACTIVE USE CASES</text>
+</g>
+
+<!-- D3: Ward GeoJSON -->
+<g transform="translate(1055,1022)">
+  <rect width="220" height="112" rx="9" fill="url(#cg-d)" stroke="#2a2a7a" stroke-width="1"/>
+  <rect width="220" height="4" rx="2" fill="#6366f1" opacity=".8"/>
+  <path d="M35,60 L45,30 L75,25 L110,40 L130,30 L155,45 L160,70 L140,80 L110,72 L80,80 L55,72 Z" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M75,25 L80,80" stroke="#6366f1" stroke-width=".8" opacity=".4" stroke-dasharray="3 2"/>
+  <path d="M110,40 L110,72" stroke="#6366f1" stroke-width=".8" opacity=".4" stroke-dasharray="3 2"/>
+  <text x="110" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#8b8bf0">Ward GeoJSON</text>
+  <text x="110" y="109" text-anchor="middle" font-size="9" fill="#3a3a7a">Datameet Â· 288 Delhi Â· 1099 total</text>
+</g>
+
+<!-- D4: Object Storage -->
+<g transform="translate(1295,1022)">
+  <rect width="220" height="112" rx="9" fill="url(#cg-d)" stroke="#2a2a7a" stroke-width="1"/>
+  <rect width="220" height="4" rx="2" fill="#6366f1" opacity=".8"/>
+  <rect x="40" y="14" width="140" height="66" rx="6" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5"/>
+  <rect x="40" y="14" width="50" height="12" rx="3 3 0 0" fill="#151530" stroke="#6366f1" stroke-width="1"/>
+  <line x1="40" y1="34" x2="180" y2="34" stroke="#6366f1" stroke-width=".8" opacity=".4"/>
+  <text x="110" y="52" text-anchor="middle" font-size="9" fill="#6366f1">aqi-report-2026.pdf</text>
+  <text x="110" y="64" text-anchor="middle" font-size="9" fill="#6366f1">export-delhi-q2.csv</text>
+  <text x="110" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#8b8bf0">Report Storage</text>
+  <text x="110" y="109" text-anchor="middle" font-size="9" fill="#3a3a7a">PDFs Â· CSV Â· S3-ready</text>
+</g>
+
+<!-- D5: Backup -->
+<g transform="translate(1535,1022)">
+  <rect width="200" height="112" rx="9" fill="url(#cg-d)" stroke="#2a2a7a" stroke-width="1"/>
+  <rect width="200" height="4" rx="2" fill="#6366f1" opacity=".8"/>
+  <path d="M100,14 C128,14 150,32 150,54 C150,76 128,90 100,90 C72,90 50,76 50,54 C50,32 72,14 100,14 Z" fill="#0c0c28" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M100,30 C118,30 132,40 132,54" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+  <path d="M100,30 C82,30 68,40 68,54" fill="none" stroke="#6366f1" stroke-width="1.5" opacity=".5"/>
+  <text x="100" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#8b8bf0">Backup / DR</text>
+  <text x="100" y="109" text-anchor="middle" font-size="9" fill="#3a3a7a">pg_dump Â· PITR-ready</text>
+</g>
+
+
+<!-- â”â”â” ARROWS 6â†’7 â”â”â” -->
+<line x1="500" y1="1150" x2="400" y2="1176" stroke="#4ade8044" stroke-width="1.5" marker-end="url(#a0)"/>
+<line x1="960" y1="1150" x2="960" y2="1176" stroke="#4ade8044" stroke-width="3" stroke-dasharray="5 3" marker-end="url(#a0)"/>
+<line x1="1500" y1="1150" x2="1600" y2="1176" stroke="#4ade8044" stroke-width="1.5" marker-end="url(#a0)"/>
+<text x="960" y="1168" text-anchor="middle" font-size="9" fill="#4ade8044" letter-spacing="1.5">CONTAINER ORCHESTRATION Â· OBSERVABILITY</text>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LAYER 7: INFRASTRUCTURE (y=1180) -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="1180" width="1840" height="148" rx="14" fill="url(#gi)" stroke="#2e3a2e" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="1180" width="6" height="148" rx="3" fill="#4ade80"/>
+<text x="60" y="1198" font-size="9" font-weight="700" fill="#4ade80" letter-spacing="2.5">08  INFRASTRUCTURE &amp; OBSERVABILITY</text>
+<line x1="355" y1="1194" x2="1870" y2="1194" stroke="#4ade80" stroke-width=".5" opacity=".2"/>
+
+<!-- I1: Docker Compose -->
+<g transform="translate(55,1202)">
+  <rect width="252" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="252" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <!-- 4 container boxes -->
+  <rect x="14" y="14" width="52" height="38" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <rect x="72" y="14" width="52" height="38" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <rect x="130" y="14" width="52" height="38" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <rect x="188" y="14" width="52" height="38" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <text x="40" y="30" text-anchor="middle" font-size="7.5" fill="#4ade80">frontend</text>
+  <text x="40" y="42" text-anchor="middle" font-size="7" fill="#3a6a3a">:5173</text>
+  <text x="98" y="30" text-anchor="middle" font-size="7.5" fill="#4ade80">backend</text>
+  <text x="98" y="42" text-anchor="middle" font-size="7" fill="#3a6a3a">:8000</text>
+  <text x="156" y="30" text-anchor="middle" font-size="7.5" fill="#ff6b6b">redis</text>
+  <text x="156" y="42" text-anchor="middle" font-size="7" fill="#3a6a3a">:6379</text>
+  <text x="214" y="30" text-anchor="middle" font-size="7.5" fill="#6366f1">timescale</text>
+  <text x="214" y="42" text-anchor="middle" font-size="7" fill="#3a6a3a">:5432</text>
+  <text x="126" y="68" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">Docker Compose</text>
+  <text x="126" y="81" text-anchor="middle" font-size="9" fill="#2a5a2a">4 containers Â· Isolated network</text>
+  <rect x="42" y="90" width="168" height="16" rx="8" fill="#001a0a" stroke="#005030"/>
+  <text x="126" y="102" text-anchor="middle" font-size="8.5" fill="#26d4b4" font-weight="700">ALL RUNNING Â· HEALTHY</text>
+</g>
+
+<!-- I2: Background Scheduler -->
+<g transform="translate(327,1202)">
+  <rect width="220" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="220" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <circle cx="110" cy="36" r="24" fill="#0c140c" stroke="#4ade80" stroke-width="1.5"/>
+  <line x1="110" y1="18" x2="110" y2="36" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="110" y1="36" x2="122" y2="28" stroke="#4ade80" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="110" cy="36" r="3.5" fill="#4ade80"/>
+  <text x="110" y="72" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">BG Scheduler</text>
+  <text x="110" y="85" text-anchor="middle" font-size="9" fill="#2a5a2a">FastAPI lifespan Â· AsyncIO</text>
+  <text x="110" y="98" text-anchor="middle" font-size="9" fill="#2a5a2a">30-min CAAQMS poll Â· RQ queue</text>
+</g>
+
+<!-- I3: CI/CD -->
+<g transform="translate(567,1202)">
+  <rect width="210" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="210" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <!-- Git branch icon -->
+  <circle cx="70" cy="20" r="10" fill="#0c140c" stroke="#4ade80" stroke-width="1.5"/>
+  <circle cx="105" cy="50" r="10" fill="#0c140c" stroke="#4ade80" stroke-width="1.5"/>
+  <circle cx="140" cy="20" r="10" fill="#0c140c" stroke="#4ade80" stroke-width="1.5"/>
+  <line x1="70" y1="30" x2="70" y2="50" stroke="#4ade80" stroke-width="1.5"/>
+  <path d="M70,40 Q105,30 105,40" fill="none" stroke="#4ade80" stroke-width="1.5"/>
+  <line x1="140" y1="30" x2="140" y2="46" stroke="#4ade80" stroke-width="1.5" opacity=".5"/>
+  <text x="105" y="74" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">CI / CD Pipeline</text>
+  <text x="105" y="87" text-anchor="middle" font-size="9" fill="#2a5a2a">GitHub Actions Â· pytest</text>
+  <rect x="30" y="95" width="150" height="13" rx="6.5" fill="#001a0a" stroke="#005030"/>
+  <text x="105" y="105" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">76 TESTS PASSING Â· GREEN</text>
+</g>
+
+<!-- I4: Monitoring -->
+<g transform="translate(797,1202)">
+  <rect width="220" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="220" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <rect x="28" y="10" width="164" height="52" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <path d="M36,46 C48,20 62,38 74,26 C86,14 98,38 110,26 C122,14 136,32 148,20 C160,8 170,30 180,22" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="180" cy="22" r="3.5" fill="#4ade80"/>
+  <text x="110" y="74" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">Monitoring</text>
+  <text x="110" y="87" text-anchor="middle" font-size="9" fill="#2a5a2a">structlog Â· /health Â· JSON logs</text>
+  <rect x="30" y="95" width="160" height="13" rx="6.5" fill="#001a0a" stroke="#005030"/>
+  <text x="110" y="105" text-anchor="middle" font-size="8" fill="#26d4b4" font-weight="600">PROMETHEUS / GRAFANA READY</text>
+</g>
+
+<!-- I5: Secrets & Config -->
+<g transform="translate(1037,1202)">
+  <rect width="210" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="210" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <rect x="62" y="18" width="86" height="56" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.5"/>
+  <path d="M76,28 Q76,16 105,16 Q134,16 134,28" fill="none" stroke="#4ade80" stroke-width="1.5"/>
+  <circle cx="105" cy="42" r="10" fill="#0c1a0c" stroke="#4ade80" stroke-width="1.2"/>
+  <line x1="105" y1="52" x2="105" y2="62" stroke="#4ade80" stroke-width="2" stroke-linecap="round"/>
+  <text x="105" y="86" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">Secrets &amp; Config</text>
+  <text x="105" y="99" text-anchor="middle" font-size="9" fill="#2a5a2a">.env Â· pydantic-settings</text>
+</g>
+
+<!-- I6: Multi-tenant -->
+<g transform="translate(1267,1202)">
+  <rect width="220" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="220" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <rect x="14" y="14" width="88" height="52" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <rect x="118" y="14" width="88" height="52" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <line x1="110" y1="14" x2="110" y2="66" stroke="#4ade80" stroke-width="2" opacity=".3"/>
+  <text x="58" y="34" text-anchor="middle" font-size="8" fill="#4ade80">Delhi Â· Mumbai</text>
+  <text x="58" y="46" text-anchor="middle" font-size="8" fill="#4ade80">Bangalore Â· Chennai</text>
+  <text x="162" y="34" text-anchor="middle" font-size="8" fill="#4ade80">Hyderabad</text>
+  <text x="162" y="46" text-anchor="middle" font-size="8" fill="#4ade80">Kolkata Â· Lucknow</text>
+  <text x="110" y="80" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">Multi-Tenant</text>
+  <text x="110" y="93" text-anchor="middle" font-size="9" fill="#2a5a2a">7 cities Â· isolated data scopes</text>
+</g>
+
+<!-- I7: Scalability -->
+<g transform="translate(1507,1202)">
+  <rect width="372" height="110" rx="9" fill="url(#cg-i)" stroke="#243024" stroke-width="1"/>
+  <rect width="372" height="4" rx="2" fill="#4ade80" opacity=".8"/>
+  <!-- Scaling arrows -->
+  <rect x="20" y="14" width="70" height="44" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2"/>
+  <text x="55" y="30" text-anchor="middle" font-size="7.5" fill="#4ade80">Service</text>
+  <text x="55" y="42" text-anchor="middle" font-size="7.5" fill="#4ade80">Instance 1</text>
+  <text x="55" y="54" text-anchor="middle" font-size="7" fill="#2a5a2a">:8000</text>
+  <path d="M94,36 L120,36" stroke="#4ade80" stroke-width="2" marker-end="url(#a0)"/>
+  <rect x="122" y="14" width="70" height="44" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width="1.2" opacity=".6" stroke-dasharray="4 2"/>
+  <text x="157" y="30" text-anchor="middle" font-size="7.5" fill="#4ade80" opacity=".6">Service</text>
+  <text x="157" y="42" text-anchor="middle" font-size="7.5" fill="#4ade80" opacity=".6">Instance 2</text>
+  <path d="M196,36 L222,36" stroke="#4ade80" stroke-width="2" opacity=".4" marker-end="url(#a0)"/>
+  <rect x="224" y="14" width="70" height="44" rx="5" fill="#0c140c" stroke="#4ade80" stroke-width=".8" opacity=".3" stroke-dasharray="4 2"/>
+  <text x="259" y="36" text-anchor="middle" font-size="7.5" fill="#4ade80" opacity=".3">Instance N</text>
+  <text x="186" y="74" text-anchor="middle" font-size="11.5" font-weight="700" fill="#86efac">Horizontal Scaling</text>
+  <text x="186" y="87" text-anchor="middle" font-size="9" fill="#2a5a2a">Redis rate limits Â· JWT blacklist</text>
+  <text x="186" y="100" text-anchor="middle" font-size="9" fill="#2a5a2a">persist across all workers</text>
+</g>
+
+
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<!-- LEGEND -->
+<!-- â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â” -->
+<rect x="40" y="1350" width="1840" height="58" rx="10" fill="#0a0d14" stroke="#1e2840" stroke-width="1"/>
+
+<rect x="60" y="1366" width="12" height="12" rx="2" fill="#4da6ff"/><text x="78" y="1377" font-size="9.5" fill="#6080a0">Client Layer</text>
+<rect x="160" y="1366" width="12" height="12" rx="2" fill="#a855f7"/><text x="178" y="1377" font-size="9.5" fill="#6080a0">Edge &amp; Security</text>
+<rect x="285" y="1366" width="12" height="12" rx="2" fill="#22c55e"/><text x="303" y="1377" font-size="9.5" fill="#6080a0">API Gateway</text>
+<rect x="395" y="1366" width="12" height="12" rx="2" fill="#eab308"/><text x="413" y="1377" font-size="9.5" fill="#6080a0">App Modules</text>
+<rect x="500" y="1366" width="12" height="12" rx="2" fill="#f97316"/><text x="518" y="1377" font-size="9.5" fill="#6080a0">AI / ML Engine</text>
+<rect x="615" y="1366" width="12" height="12" rx="2" fill="#14b8a6"/><text x="633" y="1377" font-size="9.5" fill="#6080a0">External Data</text>
+<rect x="730" y="1366" width="12" height="12" rx="2" fill="#6366f1"/><text x="748" y="1377" font-size="9.5" fill="#6080a0">Data Layer</text>
+<rect x="830" y="1366" width="12" height="12" rx="2" fill="#4ade80"/><text x="848" y="1377" font-size="9.5" fill="#6080a0">Infrastructure</text>
+
+<!-- Right side stats -->
+<text x="1870" y="1368" text-anchor="end" font-size="9" fill="#2a4a2a" letter-spacing=".5">STACK:</text>
+<text x="1870" y="1382" text-anchor="end" font-size="9" fill="#3a6a3a">Python 3.12 Â· FastAPI Â· React 18 Â· PostgreSQL 15 Â· Redis 7 Â· Docker Â· PostGIS</text>
+<text x="1870" y="1396" text-anchor="end" font-size="9" fill="#3a6a3a">Twilio Â· Claude claude-sonnet-4-6 Â· WAQI Â· Open-Meteo Â· NASA Â· TomTom</text>
+
+<!-- Legend second row -->
+<circle cx="72" cy="1402" r="5" fill="#2ecc71"/>
+<text x="83" y="1407" font-size="9" fill="#26d4b4">Live real-time data</text>
+<rect x="178" y="1395" width="68" height="14" rx="7" fill="#1a0808" stroke="#5a1010"/>
+<text x="212" y="1406" text-anchor="middle" font-size="8" fill="#ff6b6b" font-weight="600">REDIS</text>
+<text x="252" y="1407" font-size="9" fill="#6080a0">Redis-backed</text>
+<rect x="318" y="1395" width="46" height="14" rx="7" fill="#1a0c00" stroke="#6b2d00"/>
+<text x="341" y="1406" text-anchor="middle" font-size="8" fill="#ff8c42" font-weight="600">AI</text>
+<text x="370" y="1407" font-size="9" fill="#6080a0">AI-powered</text>
+<rect x="424" y="1395" width="46" height="14" rx="7" fill="#220d28" stroke="#5a1f6e"/>
+<text x="447" y="1406" text-anchor="middle" font-size="8" fill="#d97ef0" font-weight="600">JWT</text>
+<text x="476" y="1407" font-size="9" fill="#6080a0">Auth-gated</text>
+<text x="540" y="1407" font-size="9" fill="#6080a0">Â· Â· Â·</text>
+<text x="560" y="1407" font-size="9" fill="#4a6a4a">ET AI Hackathon 2026 Â· Problem Statement 5 Â· github.com/harshita-bamniya/VayuShield</text>
+
+</svg>
