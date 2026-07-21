@@ -279,7 +279,7 @@ async def _seed_test_wards_and_readings(session) -> None:
                 {
                     "id": str(uuid.uuid4()),
                     "sid": station_id,
-                    "ts": ts.isoformat(),
+                    "ts": ts,
                     "pm25": pm25,
                     "pm10": pm10,
                     "no2": no2,
