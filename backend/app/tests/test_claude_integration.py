@@ -176,8 +176,6 @@ async def test_ai_brief_endpoint_not_found(client: AsyncClient, sysadmin_token: 
 @pytest.mark.anyio
 async def test_ai_brief_endpoint_updates_brief(client: AsyncClient, sysadmin_token: str):
     """Fetch the first enforcement item, then call ai-brief with a mocked Claude."""
-    from app.core import claude_client
-
     # Get any existing enforcement item
     queue_resp = await client.get(
         f"/api/v1/cities/{DELHI_CITY_ID}/enforcement",
