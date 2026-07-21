@@ -30,11 +30,23 @@ def disable_rate_limits():
     if inspect.iscoroutinefunction(original_check):
 
         async def _noop(*args, **kwargs):
+            # args[0] is the Starlette Request; initialize the attribute that
+            # @limiter.limit()'s async_wrapper reads after the handler returns.
+            if args and hasattr(args[0], "state"):
+                try:
+                    args[0].state.view_rate_limit = None
+                except Exception:
+                    pass
             return None
 
     else:
 
         def _noop(*args, **kwargs):
+            if args and hasattr(args[0], "state"):
+                try:
+                    args[0].state.view_rate_limit = None
+                except Exception:
+                    pass
             return None
 
     limiter._check_request_limit = _noop

@@ -192,7 +192,7 @@ async def test_ai_brief_endpoint_updates_brief(client: AsyncClient, sysadmin_tok
     ai_text = "Mocked AI enforcement brief — five professional sentences about compliance."
     mock_client = _mock_claude_response(ai_text)
 
-    with patch.object(claude_client, "get_anthropic_client", return_value=mock_client):
+    with patch.object(_llm_client, "get_groq_client", return_value=mock_client):
         resp = await client.post(
             f"/api/v1/cities/{DELHI_CITY_ID}/enforcement/{item_id}/ai-brief",
             headers={"Authorization": f"Bearer {sysadmin_token}"},

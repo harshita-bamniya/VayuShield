@@ -193,13 +193,13 @@ async def _seed_test_wards_and_readings(session) -> None:
     for ward_id, ward_name, geom_json in [
         (
             WARD_DWARKA_ID,
-            "Dwarka Sector 8 Area",
+            "Dwarka",
             '{"type":"Polygon","coordinates":[[[77.00,28.55],[77.10,28.55],'
             "[77.10,28.65],[77.00,28.65],[77.00,28.55]]]}",
         ),
         (
             WARD_CP_ID,
-            "Connaught Place Area",
+            "Connaught Place",
             '{"type":"Polygon","coordinates":[[[77.20,28.60],[77.28,28.60],'
             "[77.28,28.66],[77.20,28.66],[77.20,28.60]]]}",
         ),
