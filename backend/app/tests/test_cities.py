@@ -32,11 +32,11 @@ async def test_list_cities_as_sysadmin(client: AsyncClient, sysadmin_token: str)
 @pytest.mark.asyncio
 async def test_create_and_get_city(client: AsyncClient, sysadmin_token: str) -> None:
     headers = {"Authorization": f"Bearer {sysadmin_token}"}
-    payload = {"name": "Mumbai", "state": "Maharashtra", "timezone": "Asia/Kolkata"}
+    payload = {"name": "Jaipur", "state": "Rajasthan", "timezone": "Asia/Kolkata"}
     resp = await client.post("/api/v1/cities", json=payload, headers=headers)
     assert resp.status_code == 201
     city = resp.json()["data"]
-    assert city["name"] == "Mumbai"
+    assert city["name"] == "Jaipur"
     city_id = city["id"]
 
     resp2 = await client.get(f"/api/v1/cities/{city_id}", headers=headers)

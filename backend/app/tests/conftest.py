@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 
 import pytest
 from asgi_lifespan import LifespanManager
@@ -13,16 +14,32 @@ from app.main import app
 
 @pytest.fixture(scope="session", autouse=True)
 def disable_rate_limits():
-    """Disable slowapi rate limits for the entire test session.
+    """Bypass slowapi rate limiting for the entire test session.
 
-    Tests call /auth/login repeatedly (once per test via sysadmin_token fixture).
-    The 10/minute limit on that endpoint cascades into KeyError failures on every
-    test that uses sysadmin_token once the counter trips.
+    Setting _enabled = False is supposed to short-circuit the middleware, but
+    the @limiter.limit() decorator may call _check_request_limit independently
+    of the middleware's _enabled check (observed with Redis-backed storage).
+    Patching _check_request_limit to a no-op guarantees no code path enforces
+    limits regardless of slowapi version.
     """
     from app.core.rate_limit import limiter
 
     limiter._enabled = False
+    original_check = limiter._check_request_limit
+
+    if inspect.iscoroutinefunction(original_check):
+
+        async def _noop(*args, **kwargs):
+            return None
+
+    else:
+
+        def _noop(*args, **kwargs):
+            return None
+
+    limiter._check_request_limit = _noop
     yield
+    limiter._check_request_limit = original_check
     limiter._enabled = True
 
 
@@ -45,17 +62,24 @@ def seed_db():
     asyncio.run(_do_seed())
 
 
+@pytest.fixture(scope="session")
+def sysadmin_token(seed_db) -> str:
+    """Obtain a sysadmin JWT once per session by calling authenticate_user
+    directly — never hits the HTTP layer so the 10/minute login rate limit
+    is never consumed."""
+    from app.core import database as db_module
+    from app.modules.auth.service import authenticate_user, issue_tokens
+
+    async def _get() -> str:
+        async with db_module.AsyncSessionLocal() as db:
+            user = await authenticate_user(db, "admin@vayushield.local", "Admin@123")
+        return issue_tokens(user).access_token
+
+    return asyncio.run(_get())
+
+
 @pytest.fixture
 async def client(seed_db):  # noqa: ARG001
     async with LifespanManager(app):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c
-
-
-@pytest.fixture
-async def sysadmin_token(client: AsyncClient) -> str:
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"email": "admin@vayushield.local", "password": "Admin@123"},
-    )
-    return resp.json()["data"]["access_token"]
