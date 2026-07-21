@@ -59,6 +59,23 @@ async def _refresh_city(city_id: str) -> None:
     async with AsyncSessionLocal() as db:
         await poll_satellite_aod(db, city_id)
 
+    # Discover emission sources once if none exist yet, then rank enforcement queue
+    from sqlalchemy import text
+    from app.modules.ingestion.service import (
+        discover_and_import_emission_sources,
+        _auto_rank_enforcement,
+    )
+    async with AsyncSessionLocal() as db:
+        count_row = await db.execute(
+            text("SELECT COUNT(*) FROM emission_sources WHERE city_id = :cid"),
+            {"cid": city_id},
+        )
+        if (count_row.scalar() or 0) == 0:
+            await discover_and_import_emission_sources(db, city_id)
+            logger.info("Emission sources discovered", city_id=city_id)
+
+    await _auto_rank_enforcement(city_id)
+
     logger.info("City refresh complete", city_id=city_id)
 
 

@@ -46,7 +46,7 @@ async def send_whatsapp_advisory(
           "error": str | None,
         }
     """
-    target_phone = phone or _mock_phone(language)
+    target_phone = phone or settings.TWILIO_DEFAULT_PHONE or _mock_phone(language)
     sent_at = datetime.now(UTC).isoformat()
 
     if not settings.TWILIO_ENABLED:

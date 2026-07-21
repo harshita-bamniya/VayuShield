@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = "+14155238886"  # Twilio sandbox number
+    TWILIO_DEFAULT_PHONE: str = ""  # Default recipient phone number
 
     # Ingestion (Module 03)
     FIRMS_MAP_KEY: str = ""       # NASA FIRMS — https://firms.modaps.eosdis.nasa.gov/api/
