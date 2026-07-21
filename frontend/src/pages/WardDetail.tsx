@@ -153,10 +153,10 @@ export default function WardDetail() {
               <div className="space-y-1">
                 <span
                   className={`inline-block text-xs font-bold px-2 py-1 rounded ${vulnBadgeClass(
-                    ward.vulnerable_site_flags.vulnerability_tier
+                    ward.vulnerable_site_flags.vulnerability_tier as string
                   )}`}
                 >
-                  {ward.vulnerable_site_flags.vulnerability_tier}
+                  {ward.vulnerable_site_flags.vulnerability_tier as string}
                 </span>
                 <p className="text-slate-400 text-xs">
                   Score:{" "}

@@ -7,7 +7,6 @@ import {
   fetchStations,
   createCity,
   createWard,
-  createStation,
   updateStation,
   deleteCity,
   deleteWard,
@@ -18,7 +17,6 @@ import {
   type StationOut,
   type CreateCityPayload,
   type CreateWardPayload,
-  type CreateStationPayload,
 } from "@/features/cities/api";
 import type { Ward } from "@/lib/types";
 
@@ -643,260 +641,6 @@ function AddWardForm({ cityId, cityName, onCreated }: { cityId: string; cityName
   );
 }
 
-// Known CAAQMS stations per city — name, agency code, and GPS coordinates
-const STATIONS_BY_CITY: Record<string, { name: string; code: string; lat: number; lon: number }[]> = {
-  "New Delhi": [
-    { name: "Anand Vihar",       code: "DPCC_ANAND_VIHAR",    lat: 28.6469, lon: 77.3154 },
-    { name: "ITO",               code: "DPCC_ITO",             lat: 28.6273, lon: 77.2403 },
-    { name: "RK Puram",          code: "DPCC_RK_PURAM",        lat: 28.5651, lon: 77.1762 },
-    { name: "Punjabi Bagh",      code: "DPCC_PUNJABI_BAGH",    lat: 28.6712, lon: 77.1314 },
-    { name: "Dwarka Sector 8",   code: "DPCC_DWARKA_SEC8",     lat: 28.5921, lon: 77.0460 },
-    { name: "Rohini",            code: "DPCC_ROHINI",          lat: 28.7384, lon: 77.1170 },
-    { name: "Okhla Phase 2",     code: "DPCC_OKHLA_PH2",       lat: 28.5325, lon: 77.2735 },
-    { name: "Pusa IITM",         code: "IITM_PUSA",            lat: 28.6388, lon: 77.1488 },
-  ],
-  "Mumbai": [
-    { name: "Colaba",            code: "MPCB_COLABA",          lat: 18.9067, lon: 72.8147 },
-    { name: "Mazgaon",           code: "MPCB_MAZGAON",         lat: 18.9635, lon: 72.8414 },
-    { name: "Worli",             code: "MPCB_WORLI",           lat: 19.0048, lon: 72.8172 },
-    { name: "Chembur",           code: "MPCB_CHEMBUR",         lat: 19.0633, lon: 72.9005 },
-    { name: "Bandra",            code: "MPCB_BANDRA",          lat: 19.0522, lon: 72.8414 },
-    { name: "Kurla",             code: "MPCB_KURLA",           lat: 19.0726, lon: 72.8845 },
-    { name: "Powai",             code: "MPCB_POWAI",           lat: 19.1197, lon: 72.9051 },
-    { name: "Andheri",           code: "MPCB_ANDHERI",         lat: 19.1136, lon: 72.8697 },
-    { name: "Vile Parle",        code: "MPCB_VILE_PARLE",      lat: 19.0990, lon: 72.8490 },
-    { name: "Malad",             code: "MPCB_MALAD",           lat: 19.1874, lon: 72.8484 },
-    { name: "Kandivali",         code: "MPCB_KANDIVALI",       lat: 19.2043, lon: 72.8418 },
-    { name: "Borivali",          code: "MPCB_BORIVALI",        lat: 19.2347, lon: 72.8567 },
-    { name: "Mulund",            code: "MPCB_MULUND",          lat: 19.1726, lon: 72.9560 },
-    { name: "Vasai",             code: "MPCB_VASAI",           lat: 19.3919, lon: 72.8397 },
-    { name: "Sion",              code: "MPCB_SION",            lat: 19.0416, lon: 72.8616 },
-  ],
-  "Bengaluru": [
-    { name: "BTM Layout",        code: "KSPCB_BTM",            lat: 12.9166, lon: 77.6101 },
-    { name: "Silk Board",        code: "KSPCB_SILK_BOARD",     lat: 12.9176, lon: 77.6233 },
-    { name: "Hebbal",            code: "KSPCB_HEBBAL",         lat: 13.0358, lon: 77.5970 },
-    { name: "Peenya",            code: "KSPCB_PEENYA",         lat: 13.0284, lon: 77.5192 },
-    { name: "City Railway Stn",  code: "KSPCB_CITY_RAILWAY",   lat: 12.9774, lon: 77.5707 },
-    { name: "Bapuji Nagar",      code: "KSPCB_BAPUJI_NAGAR",  lat: 12.9542, lon: 77.5476 },
-  ],
-  "Hyderabad": [
-    { name: "Sanathnagar",       code: "TSPCB_SANATHNAGAR",    lat: 17.4490, lon: 78.4400 },
-    { name: "Bollaram",          code: "TSPCB_BOLLARAM",        lat: 17.5244, lon: 78.3826 },
-    { name: "ICRISAT",           code: "TSPCB_ICRISAT",         lat: 17.5303, lon: 78.2741 },
-    { name: "Zoo Park",          code: "TSPCB_ZOO_PARK",        lat: 17.3491, lon: 78.4511 },
-    { name: "Somajiguda",        code: "TSPCB_SOMAJIGUDA",      lat: 17.4239, lon: 78.4738 },
-    { name: "Nacharam",          code: "TSPCB_NACHARAM",        lat: 17.4014, lon: 78.5508 },
-  ],
-  "Chennai": [
-    { name: "Alandur",           code: "TNPCB_ALANDUR",        lat: 13.0002, lon: 80.2042 },
-    { name: "Manali",            code: "TNPCB_MANALI",          lat: 13.1673, lon: 80.2618 },
-    { name: "Velachery",         code: "TNPCB_VELACHERY",       lat: 12.9815, lon: 80.2180 },
-    { name: "Kodungaiyur",       code: "TNPCB_KODUNGAIYUR",    lat: 13.1367, lon: 80.2567 },
-    { name: "Perungudi",         code: "TNPCB_PERUNGUDI",       lat: 12.9612, lon: 80.2430 },
-  ],
-  "Kolkata": [
-    { name: "Rabindra Bharati",  code: "WBPCB_RABINDRA_BHARATI", lat: 22.5962, lon: 88.3674 },
-    { name: "Ballygunge",        code: "WBPCB_BALLYGUNGE",      lat: 22.5264, lon: 88.3671 },
-    { name: "Jadavpur",          code: "WBPCB_JADAVPUR",        lat: 22.4967, lon: 88.3713 },
-    { name: "Fort William",      code: "WBPCB_FORT_WILLIAM",    lat: 22.5568, lon: 88.3377 },
-    { name: "Ghusuri",           code: "WBPCB_GHUSURI",         lat: 22.5822, lon: 88.2948 },
-  ],
-  "Pune": [
-    { name: "Shivajinagar",      code: "MPCB_SHIVAJINAGAR",    lat: 18.5308, lon: 73.8475 },
-    { name: "Katraj",            code: "MPCB_KATRAJ",           lat: 18.4564, lon: 73.8684 },
-    { name: "Pashan",            code: "MPCB_PASHAN",           lat: 18.5362, lon: 73.7943 },
-    { name: "Hadapsar",          code: "MPCB_HADAPSAR",         lat: 18.5089, lon: 73.9259 },
-  ],
-  "Ahmedabad": [
-    { name: "Maninagar",         code: "GPCB_MANINAGAR",        lat: 22.9977, lon: 72.6040 },
-    { name: "Bopal",             code: "GPCB_BOPAL",            lat: 23.0301, lon: 72.4695 },
-    { name: "Vatva GIDC",        code: "GPCB_VATVA",            lat: 22.9650, lon: 72.6490 },
-    { name: "Chandkheda",        code: "GPCB_CHANDKHEDA",       lat: 23.1054, lon: 72.5880 },
-  ],
-  "Lucknow": [
-    { name: "Talkatora",         code: "UPPCB_TALKATORA",       lat: 26.8558, lon: 80.9164 },
-    { name: "Lalbagh",           code: "UPPCB_LALBAGH",         lat: 26.8536, lon: 80.9271 },
-    { name: "Gomti Nagar",       code: "UPPCB_GOMTI_NAGAR",     lat: 26.8562, lon: 81.0008 },
-  ],
-  "Jaipur": [
-    { name: "Shastri Nagar",     code: "RSPCB_SHASTRI_NAGAR",  lat: 26.9341, lon: 75.8074 },
-    { name: "Mansarovar",        code: "RSPCB_MANSAROVAR",      lat: 26.8593, lon: 75.7673 },
-    { name: "Vidhyadhar Nagar",  code: "RSPCB_VIDHYADHAR",      lat: 26.9602, lon: 75.7836 },
-  ],
-};
-
-// ── Add Station Form ──────────────────────────────────────────────────────────
-
-function AddStationForm({ cityId, cityName, wards, defaultWardId, existingStations, onCreated }: { cityId: string; cityName: string; wards: Ward[]; defaultWardId?: string; existingStations?: StationOut[]; onCreated: () => void }) {
-  const qc = useQueryClient();
-  const allPresets = STATIONS_BY_CITY[cityName] ?? [];
-
-  // Only show stations not already assigned to a different ward
-  const takenCodes = new Set(
-    (existingStations ?? [])
-      .filter((s) => s.ward_id !== defaultWardId)
-      .map((s) => s.external_station_code)
-  );
-  const presetStations = allPresets.filter((s) => !takenCodes.has(s.code));
-  const [selectedPreset, setSelectedPreset] = useState("");
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [wardId, setWardId] = useState(defaultWardId ?? "");
-
-  function handlePresetChange(val: string) {
-    setSelectedPreset(val);
-    if (val && val !== "__custom__") {
-      const station = presetStations.find((s) => s.code === val);
-      if (station) {
-        setName(station.name);
-        setCode(station.code);
-        setLat(String(station.lat));
-        setLng(String(station.lon));
-      }
-    } else if (val === "__custom__") {
-      setName("");
-      setCode("");
-      setLat("");
-      setLng("");
-    }
-  }
-
-  const mutation = useMutation({
-    mutationFn: (p: CreateStationPayload) => createStation(cityId, p),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-stations", cityId] });
-      onCreated();
-      setSelectedPreset("");
-      setName("");
-      setCode("");
-      setLat("");
-      setLng("");
-      setWardId(defaultWardId ?? "");
-    },
-  });
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const geometry =
-      lat && lng
-        ? { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] }
-        : null;
-    mutation.mutate({
-      name,
-      external_station_code: code,
-      geometry,
-      ward_id: wardId || null,
-      is_active: true,
-    });
-  }
-
-  const autoFilled = selectedPreset && selectedPreset !== "__custom__";
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3 mt-3">
-      {/* Preset station picker */}
-      {presetStations.length > 0 && (
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Auto-fill from known CAAQMS station (optional)</label>
-          <select
-            value={selectedPreset}
-            onChange={(e) => handlePresetChange(e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"
-          >
-            <option value="">— Choose a CAAQMS station —</option>
-            {presetStations.map((s) => (
-              <option key={s.code} value={s.code}>{s.name}</option>
-            ))}
-            <option value="__custom__">Other (enter manually)</option>
-          </select>
-        </div>
-      )}
-
-      {/* Name + code — shown always for custom, shown pre-filled for preset */}
-      {(presetStations.length === 0 || selectedPreset) && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Station name *</label>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Andheri CAAQMS"
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Station code *</label>
-            <input
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="e.g. MPCB_ANDHERI"
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
-            />
-          </div>
-        </div>
-      )}
-      {(presetStations.length === 0 || selectedPreset) && (
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs text-slate-400">Coordinates</label>
-            {autoFilled && <span className="text-xs text-emerald-400">✓ Auto-filled</span>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="number"
-              step="any"
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-              placeholder="Latitude"
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
-            />
-            <input
-              type="number"
-              step="any"
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-              placeholder="Longitude"
-              className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
-            />
-          </div>
-        </div>
-      )}
-      {wards.length > 0 && !defaultWardId && (
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Assign to ward (optional)</label>
-          <select
-            value={wardId}
-            onChange={(e) => setWardId(e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"
-          >
-            <option value="">— None —</option>
-            {wards.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {mutation.isError && (
-        <p className="text-red-400 text-xs">{String((mutation.error as Error).message)}</p>
-      )}
-      <button
-        type="submit"
-        disabled={mutation.isPending}
-        className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded transition-colors"
-      >
-        {mutation.isPending ? "Adding…" : "Add Station"}
-      </button>
-    </form>
-  );
-}
-
 // ── Ward Delete Button (used in nested layout) ────────────────────────────────
 
 function WardDeleteButton({ ward, cityId, onDeleted }: { ward: Ward; cityId: string; onDeleted: () => void }) {
@@ -1074,8 +818,6 @@ function CityRow({ city }: { city: CityWithCounts }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [addingWard, setAddingWard] = useState(false);
-  // per-ward: which ward has its "Add Station" form open
-  const [addingStationForWard, setAddingStationForWard] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // which ward accordion is currently expanded
   const [openWardId, setOpenWardId] = useState<string | null>(null);
@@ -1266,7 +1008,6 @@ function CityRow({ city }: { city: CityWithCounts }) {
               {(wardsQ.data ?? []).map((w) => {
                 const wardStations = (stationsQ.data ?? []).filter((s) => s.ward_id === w.id);
                 const isOpen = openWardId === w.id;
-                const isAddingStation = addingStationForWard === w.id;
                 return (
                   <div key={w.id} className="rounded-lg border border-slate-600 overflow-hidden">
                     {/* Ward header */}

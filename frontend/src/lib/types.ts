@@ -84,7 +84,7 @@ export interface EnforcementItem {
   status: EnforcementStatus;
 }
 
-export type AdvisoryChannel = "web" | "sms" | "push";
+export type AdvisoryChannel = "web" | "sms" | "push" | "whatsapp";
 
 export interface Advisory {
   id: string;
