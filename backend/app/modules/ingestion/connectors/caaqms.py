@@ -38,71 +38,72 @@ def _pm25_to_aqi(pm25: float) -> int:
             return round(aqi)
     return 500
 
+
 # Maps our internal station_code → WAQI station slug (verified against live API)
 _WAQI_SLUGS: dict[str, str] = {
     # Delhi DPCC network
-    "DPCC_ANAND_VIHAR":  "delhi/anand-vihar",
-    "DPCC_ITO":          "delhi/ito",
+    "DPCC_ANAND_VIHAR": "delhi/anand-vihar",
+    "DPCC_ITO": "delhi/ito",
     "DPCC_PUNJABI_BAGH": "delhi/punjabi-bagh",
-    "DPCC_MANDIR_MARG":  "delhi/mandir-marg",
-    "DPCC_SHADIPUR":     "delhi/shadipur",
-    "DPCC_NARELA":       "delhi/narela",
-    "DPCC_MUNDKA":       "delhi/mundka",
-    "IITM_PUSA":         "delhi/pusa",
-    "DPCC_DWARKA_SEC8":  "delhi/national-institute-of-malaria-research--sector-8--dwarka",
-    "DPCC_RK_PURAM":     "india/delhi/rk-puram",
-    "DPCC_ROHINI":       "india/delhi/rohini",
-    "DPCC_OKHLA_PH2":    "india/delhi/okhla-phase-2",
-    "DPCC_BAWANA":       "india/delhi/bawana",
-    "DPCC_PATPARGANJ":   "india/delhi/patparganj",
-    "DPCC_SONIA_VIHAR":  "india/delhi/sonia-vihar",
-    "DPCC_VIVEK_VIHAR":  "india/delhi/vivek-vihar",
+    "DPCC_MANDIR_MARG": "delhi/mandir-marg",
+    "DPCC_SHADIPUR": "delhi/shadipur",
+    "DPCC_NARELA": "delhi/narela",
+    "DPCC_MUNDKA": "delhi/mundka",
+    "IITM_PUSA": "delhi/pusa",
+    "DPCC_DWARKA_SEC8": "delhi/national-institute-of-malaria-research--sector-8--dwarka",
+    "DPCC_RK_PURAM": "india/delhi/rk-puram",
+    "DPCC_ROHINI": "india/delhi/rohini",
+    "DPCC_OKHLA_PH2": "india/delhi/okhla-phase-2",
+    "DPCC_BAWANA": "india/delhi/bawana",
+    "DPCC_PATPARGANJ": "india/delhi/patparganj",
+    "DPCC_SONIA_VIHAR": "india/delhi/sonia-vihar",
+    "DPCC_VIVEK_VIHAR": "india/delhi/vivek-vihar",
     # Mumbai MPCB
-    "MPCB_COLABA":       "india/mumbai/colaba",
-    "MPCB_MAZGAON":      "india/mumbai/mazgaon",
-    "MPCB_WORLI":        "india/mumbai/worli",
-    "MPCB_CHEMBUR":      "india/mumbai/chembur",
-    "MPCB_BANDRA":       "india/mumbai/bandra",
-    "MPCB_KURLA":        "india/mumbai/kurla",
-    "MPCB_ANDHERI":      "india/mumbai/chakala-andheri-east",
-    "MPCB_MALAD":        "india/mumbai/malad-west",
-    "MPCB_BORIVALI":     "india/mumbai/borivali-east",
-    "MPCB_MULUND":       "india/mumbai/mulund-west",
+    "MPCB_COLABA": "india/mumbai/colaba",
+    "MPCB_MAZGAON": "india/mumbai/mazgaon",
+    "MPCB_WORLI": "india/mumbai/worli",
+    "MPCB_CHEMBUR": "india/mumbai/chembur",
+    "MPCB_BANDRA": "india/mumbai/bandra",
+    "MPCB_KURLA": "india/mumbai/kurla",
+    "MPCB_ANDHERI": "india/mumbai/chakala-andheri-east",
+    "MPCB_MALAD": "india/mumbai/malad-west",
+    "MPCB_BORIVALI": "india/mumbai/borivali-east",
+    "MPCB_MULUND": "india/mumbai/mulund-west",
     # Bengaluru KSPCB
-    "KSPCB_BTM":          "india/bangalore/btm",
-    "KSPCB_SILK_BOARD":   "india/bengaluru/silk-board",
-    "KSPCB_HEBBAL":       "india/bengaluru/hebbal",
-    "KSPCB_PEENYA":       "india/bangalore/peenya",
+    "KSPCB_BTM": "india/bangalore/btm",
+    "KSPCB_SILK_BOARD": "india/bengaluru/silk-board",
+    "KSPCB_HEBBAL": "india/bengaluru/hebbal",
+    "KSPCB_PEENYA": "india/bangalore/peenya",
     "KSPCB_CITY_RAILWAY": "india/bangalore/city-railway-station",
     # Hyderabad TSPCB
-    "TSPCB_SANATHNAGAR":  "india/hyderabad/sanathnagar",
-    "TSPCB_ZOO_PARK":     "india/hyderabad/zoo-park--bahadurpura-west",
-    "TSPCB_SOMAJIGUDA":   "india/hyderabad/somajiguda",
+    "TSPCB_SANATHNAGAR": "india/hyderabad/sanathnagar",
+    "TSPCB_ZOO_PARK": "india/hyderabad/zoo-park--bahadurpura-west",
+    "TSPCB_SOMAJIGUDA": "india/hyderabad/somajiguda",
     # TSPCB_NACHARAM not available on WAQI — omitted
     # Chennai TNPCB
-    "TNPCB_ALANDUR":      "chennai/alandur",
-    "TNPCB_MANALI":       "chennai/manali",
-    "TNPCB_VELACHERY":    "chennai//velachery-res.-area",
+    "TNPCB_ALANDUR": "chennai/alandur",
+    "TNPCB_MANALI": "chennai/manali",
+    "TNPCB_VELACHERY": "chennai//velachery-res.-area",
     # Kolkata WBPCB
-    "WBPCB_BALLYGUNGE":   "india/kolkata/ballygunge",
-    "WBPCB_JADAVPUR":     "india/kolkata/jadavpur",
+    "WBPCB_BALLYGUNGE": "india/kolkata/ballygunge",
+    "WBPCB_JADAVPUR": "india/kolkata/jadavpur",
     "WBPCB_FORT_WILLIAM": "india/kolkata/fort-william",
     # Pune MPCB
-    "MPCB_SHIVAJINAGAR":  "pune/shivajinagar",
-    "MPCB_KATRAJ":        "pune/katraj",
-    "MPCB_HADAPSAR":      "pune/hadapsar",
+    "MPCB_SHIVAJINAGAR": "pune/shivajinagar",
+    "MPCB_KATRAJ": "pune/katraj",
+    "MPCB_HADAPSAR": "pune/hadapsar",
 }
 
 # Pollutant field names as returned by data.gov.in
 _POLLUTANT_MAP = {
     "PM2.5": "pm25",
-    "PM10":  "pm10",
-    "NO2":   "no2",
-    "SO2":   "so2",
-    "CO":    "co",
+    "PM10": "pm10",
+    "NO2": "no2",
+    "SO2": "so2",
+    "CO": "co",
     "OZONE": "o3",
-    "O3":    "o3",
-    "NH3":   None,
+    "O3": "o3",
+    "NH3": None,
 }
 
 
@@ -134,7 +135,9 @@ async def fetch_station_reading_waqi(
         return None
 
     if data.get("status") != "ok":
-        logger.warning("WAQI returned non-ok status", station=station_code, status=data.get("status"))
+        logger.warning(
+            "WAQI returned non-ok status", station=station_code, status=data.get("status")
+        )
         return None
 
     iaqi = data["data"].get("iaqi", {})
@@ -171,14 +174,16 @@ async def fetch_station_reading_waqi(
     # PM10 must always be >= PM2.5 (PM10 includes PM2.5 by definition).
     # If a station reports PM10 < PM2.5 the PM10 instrument is faulty — drop it.
     if pm25 is not None and pm10 is not None and pm10 < pm25:
-        logger.warning("PM10 < PM2.5 discarded (instrument fault)", station=station_code, pm25=pm25, pm10=pm10)
+        logger.warning(
+            "PM10 < PM2.5 discarded (instrument fault)", station=station_code, pm25=pm25, pm10=pm10
+        )
         pm10 = None
 
     # Fetch gas readings and apply per-pollutant sanity caps
     no2 = _val("no2")
     so2 = _val("so2")
-    co  = _val("co")
-    o3  = _val("o3")
+    co = _val("co")
+    o3 = _val("o3")
 
     # CO > 40 mg/m³ (≈35 ppm) is beyond any realistic ambient reading and indicates
     # a stuck or saturated sensor — discard the value entirely
@@ -195,7 +200,9 @@ async def fetch_station_reading_waqi(
     if pm25 is None and pm10 is None and aqi_int is None:
         return None
 
-    logger.info("WAQI reading fetched", station=station_code, slug=slug, aqi=aqi_raw, pm25=pm25, co=co)
+    logger.info(
+        "WAQI reading fetched", station=station_code, slug=slug, aqi=aqi_raw, pm25=pm25, co=co
+    )
     return StationReadingIn(
         station_id=station_id,
         ts=ts,
@@ -255,8 +262,12 @@ async def fetch_city_readings_cpcb(city_name: str) -> dict[str, dict]:
         if key not in grouped:
             grouped[key] = {
                 "_station_raw": station_raw,
-                "pm25": None, "pm10": None, "no2": None,
-                "so2": None, "co": None, "o3": None,
+                "pm25": None,
+                "pm10": None,
+                "no2": None,
+                "so2": None,
+                "co": None,
+                "o3": None,
             }
 
         if avg_raw and avg_raw.upper() != "NA":
@@ -298,7 +309,12 @@ def match_station_reading(
     if row.get("pm25") is None and row.get("pm10") is None:
         return None
 
-    logger.info("Matched CPCB station", code=station_code, cpcb_station=row["_station_raw"], score=best_score)
+    logger.info(
+        "Matched CPCB station",
+        code=station_code,
+        cpcb_station=row["_station_raw"],
+        score=best_score,
+    )
     return StationReadingIn(
         station_id=station_id,
         ts=ts,
@@ -325,30 +341,52 @@ async def fetch_station_readings(
 
 def _city_to_state(city_name: str) -> str:
     _MAP = {
-        "new delhi": "Delhi", "delhi": "Delhi",
-        "gurugram": "Haryana", "faridabad": "Haryana",
-        "noida": "Uttar Pradesh", "ghaziabad": "Uttar Pradesh",
-        "mumbai": "Maharashtra", "pune": "Maharashtra",
-        "nagpur": "Maharashtra", "nashik": "Maharashtra",
-        "bengaluru": "Karnataka", "bangalore": "Karnataka",
-        "mysuru": "Karnataka", "hubli": "Karnataka",
-        "hyderabad": "Telangana", "warangal": "Telangana",
-        "visakhapatnam": "Andhra Pradesh", "vijayawada": "Andhra Pradesh",
-        "chennai": "Tamil Nadu", "coimbatore": "Tamil Nadu",
+        "new delhi": "Delhi",
+        "delhi": "Delhi",
+        "gurugram": "Haryana",
+        "faridabad": "Haryana",
+        "noida": "Uttar Pradesh",
+        "ghaziabad": "Uttar Pradesh",
+        "mumbai": "Maharashtra",
+        "pune": "Maharashtra",
+        "nagpur": "Maharashtra",
+        "nashik": "Maharashtra",
+        "bengaluru": "Karnataka",
+        "bangalore": "Karnataka",
+        "mysuru": "Karnataka",
+        "hubli": "Karnataka",
+        "hyderabad": "Telangana",
+        "warangal": "Telangana",
+        "visakhapatnam": "Andhra Pradesh",
+        "vijayawada": "Andhra Pradesh",
+        "chennai": "Tamil Nadu",
+        "coimbatore": "Tamil Nadu",
         "madurai": "Tamil Nadu",
-        "kolkata": "West Bengal", "howrah": "West Bengal",
-        "ahmedabad": "Gujarat", "surat": "Gujarat",
-        "vadodara": "Gujarat", "rajkot": "Gujarat",
-        "jaipur": "Rajasthan", "jodhpur": "Rajasthan",
-        "lucknow": "Uttar Pradesh", "kanpur": "Uttar Pradesh",
-        "agra": "Uttar Pradesh", "varanasi": "Uttar Pradesh",
-        "patna": "Bihar", "gaya": "Bihar",
-        "bhopal": "Madhya Pradesh", "indore": "Madhya Pradesh",
+        "kolkata": "West Bengal",
+        "howrah": "West Bengal",
+        "ahmedabad": "Gujarat",
+        "surat": "Gujarat",
+        "vadodara": "Gujarat",
+        "rajkot": "Gujarat",
+        "jaipur": "Rajasthan",
+        "jodhpur": "Rajasthan",
+        "lucknow": "Uttar Pradesh",
+        "kanpur": "Uttar Pradesh",
+        "agra": "Uttar Pradesh",
+        "varanasi": "Uttar Pradesh",
+        "patna": "Bihar",
+        "gaya": "Bihar",
+        "bhopal": "Madhya Pradesh",
+        "indore": "Madhya Pradesh",
         "chandigarh": "Chandigarh",
-        "ludhiana": "Punjab", "amritsar": "Punjab",
-        "bhubaneswar": "Odisha", "ranchi": "Jharkhand",
-        "raipur": "Chhattisgarh", "dehradun": "Uttarakhand",
-        "guwahati": "Assam", "kochi": "Kerala",
+        "ludhiana": "Punjab",
+        "amritsar": "Punjab",
+        "bhubaneswar": "Odisha",
+        "ranchi": "Jharkhand",
+        "raipur": "Chhattisgarh",
+        "dehradun": "Uttarakhand",
+        "guwahati": "Assam",
+        "kochi": "Kerala",
         "thiruvananthapuram": "Kerala",
     }
     return _MAP.get(city_name.lower(), city_name)

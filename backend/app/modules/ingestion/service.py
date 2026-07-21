@@ -79,6 +79,7 @@ async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
 
     if not readings:
         from app.core.logging import logger
+
         logger.warning("No readings fetched — both WAQI and CPCB unavailable", city_id=city_id)
         return 0
 
@@ -268,7 +269,9 @@ async def poll_traffic(db: AsyncSession, city_id: str) -> int:
     cfg = city.config_json or {}
     lat = cfg.get("lat", 28.61)
     lon = cfg.get("lon", 77.21)
-    snapshots = await fetch_traffic_segments(city_id=city_id, city_name=city.name, city_lat=lat, city_lon=lon)
+    snapshots = await fetch_traffic_segments(
+        city_id=city_id, city_name=city.name, city_lat=lat, city_lon=lon
+    )
     return await repo.insert_traffic_snapshots(db, snapshots)
 
 
@@ -279,8 +282,7 @@ async def get_traffic_segments(db: AsyncSession, city_id: str) -> list[dict]:
         raise NotFoundError(f"City '{city_id}' not found")
     rows = await repo.get_latest_traffic(db, city_id)
     return [
-        {**r, "ts": r["ts"].isoformat() if hasattr(r["ts"], "isoformat") else r["ts"]}
-        for r in rows
+        {**r, "ts": r["ts"].isoformat() if hasattr(r["ts"], "isoformat") else r["ts"]} for r in rows
     ]
 
 
@@ -310,7 +312,12 @@ async def get_satellite_obs(db: AsyncSession, city_id: str) -> list[dict]:
         raise NotFoundError(f"City '{city_id}' not found")
     rows = await repo.get_satellite_obs_7d(db, city_id)
     return [
-        {**r, "observed_date": r["observed_date"].isoformat() if hasattr(r["observed_date"], "isoformat") else r["observed_date"]}
+        {
+            **r,
+            "observed_date": r["observed_date"].isoformat()
+            if hasattr(r["observed_date"], "isoformat")
+            else r["observed_date"],
+        }
         for r in rows
     ]
 

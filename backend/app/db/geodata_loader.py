@@ -24,6 +24,7 @@ def _geom_json(feature: dict) -> str:
 
 # ── Per-city ward extractors ──────────────────────────────────────────────────
 
+
 def delhi_wards() -> list[dict]:
     """290 MCD wards. Props: Ward_Name, Ward_No."""
     return [
@@ -64,7 +65,10 @@ def chennai_wards() -> list[dict]:
     """201 GCC wards. Props: Ward_No, Zone_Name (no ward name field)."""
     return [
         {
-            "name": f"Ward {f['properties']['Ward_No']} ({f['properties'].get('Zone_Name', '').title()})",
+            "name": (
+                f"Ward {f['properties']['Ward_No']}"
+                f" ({f['properties'].get('Zone_Name', '').title()})"
+            ),
             "geometry": _geom_json(f),
         }
         for f in _load("chennai_wards.geojson")
@@ -86,8 +90,7 @@ def pune_wards() -> list[dict]:
     return [
         {
             "name": (
-                f["properties"].get("Name1")
-                or f"Ward {f['properties'].get('wardnum', '')}"
+                f["properties"].get("Name1") or f"Ward {f['properties'].get('wardnum', '')}"
             ).strip(),
             "geometry": _geom_json(f),
         }
@@ -97,11 +100,11 @@ def pune_wards() -> list[dict]:
 
 
 CITY_WARD_LOADERS: dict[str, callable] = {
-    "Delhi":     delhi_wards,
-    "Mumbai":    mumbai_wards,
+    "Delhi": delhi_wards,
+    "Mumbai": mumbai_wards,
     "Bengaluru": bengaluru_wards,
     "Hyderabad": hyderabad_wards,
-    "Chennai":   chennai_wards,
-    "Kolkata":   kolkata_wards,
-    "Pune":      pune_wards,
+    "Chennai": chennai_wards,
+    "Kolkata": kolkata_wards,
+    "Pune": pune_wards,
 }

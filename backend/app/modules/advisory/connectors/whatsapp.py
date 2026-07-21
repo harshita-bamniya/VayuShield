@@ -67,10 +67,7 @@ async def send_whatsapp_advisory(
         }
 
     # Real Twilio send
-    url = (
-        f"https://api.twilio.com/2010-04-01/Accounts"
-        f"/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
-    )
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
     payload = {
         "From": f"whatsapp:{settings.TWILIO_WHATSAPP_FROM}",
         "To": f"whatsapp:{target_phone}",

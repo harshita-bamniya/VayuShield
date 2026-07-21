@@ -602,9 +602,7 @@ async def send_advisory_whatsapp(
 
     if result["status"] in ("sent", "mock"):
         await db.execute(
-            text(
-                "UPDATE advisories SET channel = 'whatsapp', sent_at = :ts WHERE id = :id"
-            ),
+            text("UPDATE advisories SET channel = 'whatsapp', sent_at = :ts WHERE id = :id"),
             {"ts": datetime.now(UTC), "id": advisory_id},
         )
         await db.commit()

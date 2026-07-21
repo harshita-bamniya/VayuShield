@@ -35,8 +35,7 @@ _TAG_RULES: list[tuple[str, str, str]] = [
 def _build_query(lat: float, lon: float, radius_m: int = 15000) -> str:
     """Build a compact Overpass QL query using a union of way filters only."""
     tag_filters = "\n  ".join(
-        f'way["{k}"="{v}"](around:{radius_m},{lat},{lon});'
-        for k, v, _ in _TAG_RULES
+        f'way["{k}"="{v}"](around:{radius_m},{lat},{lon});' for k, v, _ in _TAG_RULES
     )
     return f"""
 [out:json][timeout:30];

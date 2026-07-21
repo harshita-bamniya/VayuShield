@@ -183,7 +183,12 @@ async def get_enforcement_stats(db: AsyncSession, city_id: str, days: int) -> di
     )
     r = row.fetchone()
     if not r:
-        return {"completed_period": 0, "dispatched_active": 0, "pending_count": 0, "completed_total": 0}
+        return {
+            "completed_period": 0,
+            "dispatched_active": 0,
+            "pending_count": 0,
+            "completed_total": 0,
+        }
     return {
         "completed_period": int(r.completed_period or 0),
         "dispatched_active": int(r.dispatched_active or 0),

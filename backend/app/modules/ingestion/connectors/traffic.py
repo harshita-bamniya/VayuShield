@@ -31,31 +31,31 @@ TOMTOM_FLOW_URL = "https://api.tomtom.com/traffic/services/4/flowSegmentData/abs
 # Representative road segments per city: (segment_id, name, lat, lon)
 CITY_SEGMENTS: dict[str, list[tuple[str, str, float, float]]] = {
     "Delhi": [
-        ("DEL-NH48",    "NH48 — Gurgaon Expressway", 28.5022, 77.0890),
-        ("DEL-RING",    "Ring Road — ITO",           28.6290, 77.2415),
-        ("DEL-OUTER",   "Outer Ring Road — Rohini",  28.7200, 77.1100),
-        ("DEL-GTK",     "GT Karnal Road — Mukarba",  28.7260, 77.1700),
-        ("DEL-MB",      "MB Road — Badarpur",        28.5100, 77.2940),
+        ("DEL-NH48", "NH48 — Gurgaon Expressway", 28.5022, 77.0890),
+        ("DEL-RING", "Ring Road — ITO", 28.6290, 77.2415),
+        ("DEL-OUTER", "Outer Ring Road — Rohini", 28.7200, 77.1100),
+        ("DEL-GTK", "GT Karnal Road — Mukarba", 28.7260, 77.1700),
+        ("DEL-MB", "MB Road — Badarpur", 28.5100, 77.2940),
     ],
     "Mumbai": [
-        ("MUM-WEH",  "Western Express Hwy — Andheri",  19.1197, 72.8468),
-        ("MUM-EEH",  "Eastern Express Hwy — Kurla",    19.0680, 72.8956),
-        ("MUM-SION", "Sion-Panvel Hwy",                19.0430, 72.9250),
-        ("MUM-LBS",  "LBS Marg — Ghatkopar",           19.0900, 72.9080),
-        ("MUM-WC",   "Worli — Coastal Road",           18.9950, 72.8139),
+        ("MUM-WEH", "Western Express Hwy — Andheri", 19.1197, 72.8468),
+        ("MUM-EEH", "Eastern Express Hwy — Kurla", 19.0680, 72.8956),
+        ("MUM-SION", "Sion-Panvel Hwy", 19.0430, 72.9250),
+        ("MUM-LBS", "LBS Marg — Ghatkopar", 19.0900, 72.9080),
+        ("MUM-WC", "Worli — Coastal Road", 18.9950, 72.8139),
     ],
     "Bengaluru": [
-        ("BLR-ORR",  "Outer Ring Road — Marathahalli", 12.9588, 77.6975),
-        ("BLR-NICE", "NICE Road — Hosur",              12.8721, 77.6010),
-        ("BLR-MG",   "MG Road — Central",              12.9747, 77.6174),
-        ("BLR-BEL",  "Bellary Road — Hebbal",          13.0354, 77.5970),
-        ("BLR-ECO",  "Ecospace — Sarjapur",            12.9099, 77.6849),
+        ("BLR-ORR", "Outer Ring Road — Marathahalli", 12.9588, 77.6975),
+        ("BLR-NICE", "NICE Road — Hosur", 12.8721, 77.6010),
+        ("BLR-MG", "MG Road — Central", 12.9747, 77.6174),
+        ("BLR-BEL", "Bellary Road — Hebbal", 13.0354, 77.5970),
+        ("BLR-ECO", "Ecospace — Sarjapur", 12.9099, 77.6849),
     ],
     "_default": [
-        ("SEG-1", "Main Arterial Road",   0.0, 0.0),
-        ("SEG-2", "Ring Road",            0.01, 0.01),
-        ("SEG-3", "National Highway",     0.02, -0.01),
-        ("SEG-4", "Urban Connector",     -0.01, 0.02),
+        ("SEG-1", "Main Arterial Road", 0.0, 0.0),
+        ("SEG-2", "Ring Road", 0.01, 0.01),
+        ("SEG-3", "National Highway", 0.02, -0.01),
+        ("SEG-4", "Urban Connector", -0.01, 0.02),
         ("SEG-5", "Industrial Corridor", -0.02, -0.02),
     ],
 }
@@ -104,9 +104,7 @@ async def fetch_traffic_segments(
     api_key = getattr(settings, "TOMTOM_API_KEY", "")
     segments = CITY_SEGMENTS.get(city_name, CITY_SEGMENTS["_default"])
     if segments[0][2] == 0.0:  # default segments — offset around city centre
-        segments = [
-            (s[0], s[1], city_lat + s[2], city_lon + s[3]) for s in segments
-        ]
+        segments = [(s[0], s[1], city_lat + s[2], city_lon + s[3]) for s in segments]
 
     ts = datetime.now(UTC)
 
@@ -127,22 +125,26 @@ async def fetch_traffic_segments(
                 current_speed = float(data.get("currentSpeed", 0) or 0)
                 free_flow = float(data.get("freeFlowSpeed", 1) or 1)
                 congestion = round(free_flow / max(current_speed, 1), 2)
-                results.append({
-                    "id": str(uuid.uuid4()),
-                    "city_id": city_id,
-                    "ts": ts,
-                    "segment_id": seg_id,
-                    "segment_name": seg_name,
-                    "congestion_ratio": congestion,
-                    "current_speed": current_speed,
-                    "free_flow_speed": free_flow,
-                    "lat": lat,
-                    "lon": lon,
-                    "is_mock": False,
-                })
+                results.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "city_id": city_id,
+                        "ts": ts,
+                        "segment_id": seg_id,
+                        "segment_name": seg_name,
+                        "congestion_ratio": congestion,
+                        "current_speed": current_speed,
+                        "free_flow_speed": free_flow,
+                        "lat": lat,
+                        "lon": lon,
+                        "is_mock": False,
+                    }
+                )
             except Exception as exc:
                 logger.warning("TomTom fetch failed for segment", segment=seg_id, error=str(exc))
-                results.append(_build_mock_snapshot(city_id, city_name, (seg_id, seg_name, lat, lon), ts))
+                results.append(
+                    _build_mock_snapshot(city_id, city_name, (seg_id, seg_name, lat, lon), ts)
+                )
     return results
 
 

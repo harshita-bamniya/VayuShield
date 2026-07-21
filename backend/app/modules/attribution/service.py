@@ -93,7 +93,9 @@ def _wind_description(wind_dir: float | None, wind_speed: float | None) -> str |
 # ── Stage 1: Chemical fingerprinting ─────────────────────────────────────────
 
 
-def _vehicular_multiplier(congestion_ratio: float | None, hour_utc: int, city_tz_offset: float = 5.5) -> float:
+def _vehicular_multiplier(
+    congestion_ratio: float | None, hour_utc: int, city_tz_offset: float = 5.5
+) -> float:
     """Derive vehicular activity multiplier from real TomTom congestion data.
 
     congestion_ratio = free_flow_speed / current_speed (TomTom definition):
@@ -207,10 +209,7 @@ def _chemical_fingerprint(
 
     # --- Construction signature: coarse PM ratio ---
     # Guard: PM10 < PM2.5 is physically impossible — cross-station averaging artifact, skip
-    pm_ratio_valid = (
-        pm25 is not None and pm10 is not None
-        and pm25 > 0 and pm10 >= pm25
-    )
+    pm_ratio_valid = pm25 is not None and pm10 is not None and pm25 > 0 and pm10 >= pm25
     if pm_ratio_valid:
         data_points += 1
         ratio = pm10 / pm25  # type: ignore[operator]
@@ -489,6 +488,7 @@ async def compute_attribution(db: AsyncSession, city_id: str) -> AttributionRank
 
     # 5b. Traffic congestion boost — query avg congestion ratio from latest poll
     from app.modules.ingestion.repository import get_avg_congestion_ratio
+
     avg_congestion = await get_avg_congestion_ratio(db, city_id)
 
     # 6. Stage 1 — Chemical fingerprint

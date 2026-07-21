@@ -67,7 +67,9 @@ async def fetch_satellite_aod(
     try:
         return await _fetch_real_aod(city_id, obs_date, lat, lon, token)
     except Exception as exc:
-        logger.warning("NASA LAADS fetch failed — falling back to mock", error=str(exc), city=city_name)
+        logger.warning(
+            "NASA LAADS fetch failed — falling back to mock", error=str(exc), city=city_name
+        )
         return _build_mock_obs(city_id, city_name, obs_date)
 
 
@@ -101,9 +103,6 @@ async def _fetch_real_aod(city_id: str, obs_date: date, lat: float, lon: float, 
     # Pick global file (MOD08_D3 is one file per day worldwide)
     if not files:
         raise ValueError(f"No MODIS MOD08_D3 files found for {obs_date}")
-
-    file_name = files[0]["name"]
-    download_url = f"{LAADS_BASE}/{year}/{doy:03d}/{file_name}"
 
     # The HDF4 file requires special parsing; we extract via NASA subsetting service instead
     # NASA OPeNDAP / Giovanni subsetting for a point

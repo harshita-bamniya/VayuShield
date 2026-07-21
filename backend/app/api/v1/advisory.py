@@ -97,7 +97,10 @@ async def send_advisory_whatsapp(
     _caller: dict = Depends(require_city_scope),
     _role: dict = Depends(require_role("admin", "sysadmin")),
 ):
-    """Send an advisory via WhatsApp (Twilio). Returns mock delivery log when TWILIO_ENABLED=false."""
+    """Send an advisory via WhatsApp (Twilio).
+
+    Returns mock delivery log when TWILIO_ENABLED=false.
+    """
     result = await service.send_advisory_whatsapp(db, advisory_id, city_id, phone=phone)
     return ApiEnvelope(data=result)
 

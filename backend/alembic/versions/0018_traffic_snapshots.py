@@ -28,9 +28,11 @@ def upgrade() -> None:
         sa.Column("ts", sa.DateTime(timezone=True), nullable=False),
         sa.Column("segment_id", sa.String(100), nullable=False),
         sa.Column("segment_name", sa.String(255), nullable=True),
-        sa.Column("congestion_ratio", sa.Float, nullable=False),   # current/free-flow speed ratio (>1 = congested)
-        sa.Column("current_speed", sa.Float, nullable=True),       # km/h
-        sa.Column("free_flow_speed", sa.Float, nullable=True),     # km/h
+        sa.Column(
+            "congestion_ratio", sa.Float, nullable=False
+        ),  # current/free-flow speed ratio (>1 = congested)
+        sa.Column("current_speed", sa.Float, nullable=True),  # km/h
+        sa.Column("free_flow_speed", sa.Float, nullable=True),  # km/h
         sa.Column("lat", sa.Float, nullable=True),
         sa.Column("lon", sa.Float, nullable=True),
         sa.Column("is_mock", sa.Boolean, nullable=False, server_default="false"),

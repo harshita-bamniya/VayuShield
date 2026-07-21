@@ -26,7 +26,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("observed_date", sa.Date, nullable=False),
-        sa.Column("aod_value", sa.Float, nullable=True),       # Aerosol Optical Depth 550nm
+        sa.Column("aod_value", sa.Float, nullable=True),  # Aerosol Optical Depth 550nm
         sa.Column("estimated_pm25", sa.Float, nullable=True),  # AOD × 120 (µg/m³)
         sa.Column("source", sa.String(100), nullable=False, server_default="MODIS_TERRA"),
         sa.Column("is_mock", sa.Boolean, nullable=False, server_default="false"),

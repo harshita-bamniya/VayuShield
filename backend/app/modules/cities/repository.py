@@ -83,7 +83,9 @@ async def get_wards_for_city(
             Ward.city_id == city_id,
             Ward.id.in_(
                 text(
-                    "SELECT ward_id FROM stations WHERE ward_id IS NOT NULL AND city_id = :city_id AND is_active = true"
+                    "SELECT ward_id FROM stations"
+                    " WHERE ward_id IS NOT NULL"
+                    " AND city_id = :city_id AND is_active = true"
                 ).bindparams(city_id=city_id)
             ),
         )
@@ -96,6 +98,7 @@ async def get_wards_for_city(
         if d.get("geometry") and isinstance(d["geometry"], str):
             try:
                 import json
+
                 d["geometry"] = json.loads(d["geometry"])
             except (json.JSONDecodeError, ValueError):
                 d["geometry"] = None
@@ -122,6 +125,7 @@ async def get_ward_by_id(db: AsyncSession, ward_id: str) -> dict | None:
     if d.get("geometry") and isinstance(d["geometry"], str):
         try:
             import json
+
             d["geometry"] = json.loads(d["geometry"])
         except (json.JSONDecodeError, ValueError):
             d["geometry"] = None
@@ -221,6 +225,7 @@ async def get_wards_for_city_with_aqi(
         if d.get("geometry") and isinstance(d["geometry"], str):
             try:
                 import json
+
                 d["geometry"] = json.loads(d["geometry"])
             except (json.JSONDecodeError, ValueError):
                 d["geometry"] = None
@@ -281,10 +286,10 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
 
     ward_pm25 = _avg("pm25")
     ward_pm10 = _avg("pm10")
-    ward_no2  = _avg("no2")
-    ward_so2  = _avg("so2")
-    ward_co   = _avg("co")
-    ward_o3   = _avg("o3")
+    ward_no2 = _avg("no2")
+    ward_so2 = _avg("so2")
+    ward_co = _avg("co")
+    ward_o3 = _avg("o3")
 
     attribution_breakdown: dict[str, Any] = {}
     dominant_source = None

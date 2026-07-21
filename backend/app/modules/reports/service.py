@@ -23,7 +23,9 @@ async def build_summary(db: AsyncSession, city_id: str, days: int) -> ReportSumm
     if not city_row:
         return None
 
-    aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows, enf_stats = await _gather(db, city_id, days)
+    aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows, enf_stats = await _gather(
+        db, city_id, days
+    )
 
     city = CityInfo(**city_row)
     aqi_stats = AqiStats(

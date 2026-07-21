@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT == "production" and self.SECRET_KEY == _INSECURE_KEY:
             raise ValueError(
                 "SECRET_KEY must be changed from the default before running in production. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
         return self
 
@@ -53,11 +53,11 @@ class Settings(BaseSettings):
     TWILIO_DEFAULT_PHONE: str = ""  # Default recipient phone number
 
     # Ingestion (Module 03)
-    FIRMS_MAP_KEY: str = ""       # NASA FIRMS — https://firms.modaps.eosdis.nasa.gov/api/
-    CPCB_API_KEY: str = ""        # data.gov.in CPCB real-time AQ — https://api.data.gov.in/
-    WAQI_TOKEN: str = ""          # aqicn.org WAQI — https://aqicn.org/data-platform/token/
-    EARTHDATA_TOKEN: str = ""     # NASA Earthdata — https://earthdata.nasa.gov/
-    TOMTOM_API_KEY: str = ""      # TomTom Traffic — https://developer.tomtom.com/
+    FIRMS_MAP_KEY: str = ""  # NASA FIRMS — https://firms.modaps.eosdis.nasa.gov/api/
+    CPCB_API_KEY: str = ""  # data.gov.in CPCB real-time AQ — https://api.data.gov.in/
+    WAQI_TOKEN: str = ""  # aqicn.org WAQI — https://aqicn.org/data-platform/token/
+    EARTHDATA_TOKEN: str = ""  # NASA Earthdata — https://earthdata.nasa.gov/
+    TOMTOM_API_KEY: str = ""  # TomTom Traffic — https://developer.tomtom.com/
 
 
 settings = Settings()

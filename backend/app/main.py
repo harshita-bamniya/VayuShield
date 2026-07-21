@@ -54,6 +54,7 @@ async def _refresh_city(city_id: str) -> None:
 
     async with AsyncSessionLocal() as db:
         from app.modules.cities.service import compute_vulnerability_scores
+
         await compute_vulnerability_scores(db, city_id)
 
     async with AsyncSessionLocal() as db:
@@ -61,10 +62,12 @@ async def _refresh_city(city_id: str) -> None:
 
     # Discover emission sources once if none exist yet, then rank enforcement queue
     from sqlalchemy import text
+
     from app.modules.ingestion.service import (
-        discover_and_import_emission_sources,
         _auto_rank_enforcement,
+        discover_and_import_emission_sources,
     )
+
     async with AsyncSessionLocal() as db:
         count_row = await db.execute(
             text("SELECT COUNT(*) FROM emission_sources WHERE city_id = :cid"),
