@@ -11,6 +11,21 @@ from app.db.seed import _do_seed
 from app.main import app
 
 
+@pytest.fixture(scope="session", autouse=True)
+def disable_rate_limits():
+    """Disable slowapi rate limits for the entire test session.
+
+    Tests call /auth/login repeatedly (once per test via sysadmin_token fixture).
+    The 10/minute limit on that endpoint cascades into KeyError failures on every
+    test that uses sysadmin_token once the counter trips.
+    """
+    from app.core.rate_limit import limiter
+
+    limiter._enabled = False
+    yield
+    limiter._enabled = True
+
+
 def _make_test_session() -> async_sessionmaker:
     """Create a test-scoped async engine with NullPool so connections don't
     carry event-loop affinity across tests."""

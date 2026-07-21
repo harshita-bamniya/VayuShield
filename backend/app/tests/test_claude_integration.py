@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
+from app.core import llm_client as _llm_client
+
 DELHI_CITY_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 
@@ -55,7 +57,7 @@ async def test_generate_text_returns_ai_text_when_client_available():
 
     mock_client = _mock_claude_response("AI generated enforcement brief text.")
 
-    with patch.object(claude_client, "get_anthropic_client", return_value=mock_client):
+    with patch.object(_llm_client, "get_groq_client", return_value=mock_client):
         result = await claude_client.generate_text("Generate a brief.")
 
     assert result == "AI generated enforcement brief text."
@@ -81,13 +83,12 @@ async def test_generate_text_falls_back_on_exception():
 @pytest.mark.anyio
 async def test_evidence_brief_uses_ai_text():
     """_generate_evidence_brief returns AI text when Claude is available."""
-    from app.core import claude_client
     from app.modules.enforcement.service import _generate_evidence_brief
 
     ai_text = "AI-generated 5-sentence enforcement brief for testing purposes."
     mock_client = _mock_claude_response(ai_text)
 
-    with patch.object(claude_client, "get_anthropic_client", return_value=mock_client):
+    with patch.object(_llm_client, "get_groq_client", return_value=mock_client):
         result = await _generate_evidence_brief(
             source_name="Delhi Power Plant",
             source_type="industrial",
@@ -129,13 +130,12 @@ async def test_evidence_brief_falls_back_to_template_when_no_key():
 @pytest.mark.anyio
 async def test_advisory_body_uses_ai_text():
     """_build_advisory_text returns AI body when Claude is available."""
-    from app.core import claude_client
     from app.modules.advisory.service import _build_advisory_text
 
     ai_body = "AI-generated advisory body text about air quality."
     mock_client = _mock_claude_response(ai_body)
 
-    with patch.object(claude_client, "get_anthropic_client", return_value=mock_client):
+    with patch.object(_llm_client, "get_groq_client", return_value=mock_client):
         title, body = await _build_advisory_text("en", "Poor", "vehicular", 260)
 
     assert body == ai_body

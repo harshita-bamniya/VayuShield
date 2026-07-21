@@ -11,6 +11,7 @@ Seeds:
 """
 
 import json
+import math
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -37,6 +38,10 @@ PUNE_CITY_ID = "a2b2c3d4-e5f6-7890-abcd-ef1234567896"
 # Kept stable for Delhi alert/enforcement seeds that reference them directly
 STATION_AV_ID = "d4e5f6a7-b8c9-0123-def0-123456789013"
 STATION_ITO_ID = "e5f6a7b8-c9d0-1234-ef01-234567890124"
+
+# Stable ward IDs used by test fixtures — must match test files exactly
+WARD_DWARKA_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012"
+WARD_CP_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
 
 
 def _pt(lon: float, lat: float) -> dict:
@@ -177,11 +182,119 @@ async def seed_admin() -> None:
         logger.warning("Seed skipped (DB not ready yet)", error=str(exc))
 
 
+async def _seed_test_wards_and_readings(session) -> None:
+    """Seed two stable-ID Delhi wards and recent station readings for CI tests.
+
+    Tests reference WARD_CP_ID and WARD_DWARKA_ID by hardcoded UUID.  GeoJSON
+    wards use random UUIDs so those IDs would never exist without this step.
+    Readings are skipped when they already exist (idempotent).
+    """
+    # Insert stable test wards with bounding-box polygons that cover the stations
+    for ward_id, ward_name, geom_json in [
+        (
+            WARD_DWARKA_ID,
+            "Dwarka Sector 8 Area",
+            '{"type":"Polygon","coordinates":[[[77.00,28.55],[77.10,28.55],'
+            "[77.10,28.65],[77.00,28.65],[77.00,28.55]]]}",
+        ),
+        (
+            WARD_CP_ID,
+            "Connaught Place Area",
+            '{"type":"Polygon","coordinates":[[[77.20,28.60],[77.28,28.60],'
+            "[77.28,28.66],[77.20,28.66],[77.20,28.60]]]}",
+        ),
+    ]:
+        exists = await session.execute(
+            text("SELECT id FROM wards WHERE id = :id"),
+            {"id": ward_id},
+        )
+        if not exists.fetchone():
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO wards
+                        (id, city_id, name, geometry, population,
+                         vulnerable_site_flags, created_at, updated_at)
+                    VALUES
+                        (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), NULL,
+                         '{}', NOW(), NOW())
+                    """
+                ),
+                {
+                    "id": ward_id,
+                    "city_id": DELHI_CITY_ID,
+                    "name": ward_name,
+                    "geom": geom_json,
+                },
+            )
+
+    # Force-assign the two stable stations to the stable test wards so that
+    # ward detail queries return real readings
+    await session.execute(
+        text("UPDATE stations SET ward_id = :ward_id WHERE id = :sid"),
+        {"ward_id": WARD_DWARKA_ID, "sid": STATION_AV_ID},
+    )
+    await session.execute(
+        text("UPDATE stations SET ward_id = :ward_id WHERE id = :sid"),
+        {"ward_id": WARD_CP_ID, "sid": STATION_ITO_ID},
+    )
+    await session.commit()
+
+    # Seed 7 days of hourly readings for STATION_AV_ID if none exist
+    for station_id, pm25_base, aqi_base, hours in [
+        (
+            STATION_AV_ID,
+            140.0,
+            230,
+            168,
+        ),  # 7 days — needed by test_seeded_readings_cover_multiple_hours
+        (STATION_ITO_ID, 100.0, 190, 48),  # 2 days — needed by ward detail + public summary
+    ]:
+        count_row = await session.execute(
+            text("SELECT COUNT(*) FROM station_readings WHERE station_id = :sid"),
+            {"sid": station_id},
+        )
+        if (count_row.scalar() or 0) >= hours:
+            continue  # already seeded
+
+        now = datetime.now(UTC)
+        for h in range(hours):
+            ts = now - timedelta(hours=h + 1)
+            # Simple diurnal pattern: peak at noon, trough at 4 AM
+            multiplier = 1.0 + 0.25 * math.sin(math.pi * ts.hour / 12.0)
+            pm25 = round(pm25_base * multiplier, 1)
+            pm10 = round(pm25 * 1.6, 1)
+            no2 = round(60.0 * multiplier, 1)
+            aqi = min(500, int(aqi_base * multiplier))
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO station_readings
+                        (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)
+                    VALUES
+                        (:id, :sid, :ts, :pm25, :pm10, :no2, NULL, NULL, NULL, :aqi, false)
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                {
+                    "id": str(uuid.uuid4()),
+                    "sid": station_id,
+                    "ts": ts.isoformat(),
+                    "pm25": pm25,
+                    "pm10": pm10,
+                    "no2": no2,
+                    "aqi": aqi,
+                },
+            )
+        await session.commit()
+
+
 async def _do_seed() -> None:
     async with AsyncSessionLocal() as session:
         await _seed_sysadmin(session)
         await _seed_all_cities(session)
         await _auto_assign_stations_to_wards(session)
+        await _seed_test_wards_and_readings(session)
         # Delhi-specific supplementary data
         await _seed_delhi_emission_sources(session)
         await _seed_attribution_alerts(session)
@@ -623,7 +736,7 @@ async def _seed_advisories(session) -> None:
                      aqi_level, dominant_source, channel, sent_at, created_at)
                 VALUES
                     (:id, :city_id, NULL, :lang, :title, :body,
-                     :level, :source, 'web', NULL, NOW())
+                     :level, :source, 'web', NULL, NOW() - INTERVAL '2 days')
                 """
             ),
             {
