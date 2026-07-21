@@ -63,6 +63,29 @@ export async function fetchIvrAdvisory(
   return resp.data.data;
 }
 
+export interface WhatsAppDeliveryResult {
+  status: "sent" | "mock" | "error";
+  channel: "whatsapp";
+  phone: string;
+  sent_at: string;
+  mock: boolean;
+  sid: string | null;
+  error: string | null;
+}
+
+export async function sendAdvisoryWhatsApp(
+  cityId: string,
+  advisoryId: string,
+  phone?: string
+): Promise<WhatsAppDeliveryResult> {
+  const resp = await client.post<{ data: WhatsAppDeliveryResult }>(
+    `/cities/${cityId}/advisories/${advisoryId}/send`,
+    null,
+    { params: phone ? { phone } : undefined }
+  );
+  return resp.data.data;
+}
+
 export async function generateWardAdvisories(
   cityId: string,
   wardId: string

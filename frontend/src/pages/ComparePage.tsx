@@ -93,8 +93,8 @@ export default function ComparePage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["cities-compare"],
     queryFn: fetchCompare,
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 5,
+    staleTime: 0,
+    refetchInterval: 1000 * 60 * 2,
   });
 
   if (isLoading) {

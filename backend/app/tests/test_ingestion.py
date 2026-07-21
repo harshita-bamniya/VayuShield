@@ -29,10 +29,12 @@ async def test_latest_readings_for_delhi(client: AsyncClient, sysadmin_token: st
     codes = [s["external_station_code"] for s in stations]
     assert "DPCC_ANAND_VIHAR" in codes
     assert "DPCC_ITO" in codes
-    # Seeded readings should populate aqi
+    # DPCC_DWARKA_SEC8 (STATION_AV_ID) and DPCC_ITO have seeded readings; others have aqi=None
+    seeded_codes = {"DPCC_DWARKA_SEC8", "DPCC_ITO"}
     for s in stations:
-        assert s["aqi"] is not None
-        assert s["aqi_category"] is not None
+        if s["external_station_code"] in seeded_codes:
+            assert s["aqi"] is not None
+            assert s["aqi_category"] is not None
 
 
 @pytest.mark.asyncio

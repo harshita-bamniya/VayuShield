@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.claude_client import generate_text
+from app.core.llm_client import generate_text
 from app.modules.enforcement import repository as repo
 from app.modules.enforcement.schemas import (
     EmissionSourceBrief,

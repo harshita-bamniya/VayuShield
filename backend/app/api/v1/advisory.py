@@ -85,6 +85,26 @@ async def get_ivr_advisory(
     return ApiEnvelope(data=result)
 
 
+@router.post(
+    "/cities/{city_id}/advisories/{advisory_id}/send",
+    response_model=ApiEnvelope[dict],
+)
+async def send_advisory_whatsapp(
+    city_id: str,
+    advisory_id: str,
+    phone: str | None = Query(None, description="Target WhatsApp number e.g. +919876543210"),
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+    _role: dict = Depends(require_role("admin", "sysadmin")),
+):
+    """Send an advisory via WhatsApp (Twilio).
+
+    Returns mock delivery log when TWILIO_ENABLED=false.
+    """
+    result = await service.send_advisory_whatsapp(db, advisory_id, city_id, phone=phone)
+    return ApiEnvelope(data=result)
+
+
 @router.get(
     "/cities/{city_id}/advisories/{advisory_id}",
     response_model=ApiEnvelope[AdvisoryOut],

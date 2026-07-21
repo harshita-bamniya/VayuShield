@@ -137,6 +137,58 @@ async def list_fire_hotspots(
     return ApiEnvelope(data=hotspots)
 
 
+# ── Traffic ───────────────────────────────────────────────────────────────────
+
+
+@router.get("/cities/{city_id}/traffic", response_model=ApiEnvelope[list[dict]])
+async def get_traffic(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+):
+    """Latest congestion ratio per road segment for a city."""
+    data = await service.get_traffic_segments(db, city_id)
+    return ApiEnvelope(data=data)
+
+
+@router.post("/cities/{city_id}/traffic/poll", response_model=ApiEnvelope[dict])
+async def poll_traffic(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+    _role: dict = Depends(require_role("admin", "sysadmin")),
+):
+    """Fetch and store the latest TomTom traffic congestion data for a city."""
+    count = await service.poll_traffic(db, city_id)
+    return ApiEnvelope(data={"inserted": count})
+
+
+# ── Satellite AOD ─────────────────────────────────────────────────────────────
+
+
+@router.get("/cities/{city_id}/satellite", response_model=ApiEnvelope[list[dict]])
+async def get_satellite_obs(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+):
+    """Last 7 days of MODIS Terra AOD satellite observations for a city."""
+    data = await service.get_satellite_obs(db, city_id)
+    return ApiEnvelope(data=data)
+
+
+@router.post("/cities/{city_id}/satellite/poll", response_model=ApiEnvelope[dict])
+async def poll_satellite_aod(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+    _caller: dict = Depends(require_city_scope),
+    _role: dict = Depends(require_role("admin", "sysadmin")),
+):
+    """Fetch today's MODIS AOD observation for a city and store it."""
+    obs = await service.poll_satellite_aod(db, city_id)
+    return ApiEnvelope(data=obs)
+
+
 # ── Emission Sources ──────────────────────────────────────────────────────────
 
 

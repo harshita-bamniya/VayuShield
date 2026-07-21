@@ -11,6 +11,7 @@ from app.modules.reports.schemas import (
     AttributionSummary,
     CityInfo,
     EnforcementBrief,
+    EnforcementStats,
     ForecastSummary,
     ReportSummaryOut,
     WardAqiRow,
@@ -22,7 +23,9 @@ async def build_summary(db: AsyncSession, city_id: str, days: int) -> ReportSumm
     if not city_row:
         return None
 
-    aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows = await _gather(db, city_id, days)
+    aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows, enf_stats = await _gather(
+        db, city_id, days
+    )
 
     city = CityInfo(**city_row)
     aqi_stats = AqiStats(
@@ -53,6 +56,7 @@ async def build_summary(db: AsyncSession, city_id: str, days: int) -> ReportSumm
         forecast=forecast,
         attribution=attribution,
         ward_aqi_table=wards,
+        enforcement_stats=EnforcementStats(**enf_stats),
     )
 
 
@@ -63,7 +67,8 @@ async def _gather(db: AsyncSession, city_id: str, days: int):
     fc_raw = await repo.get_forecast_summary(db, city_id)
     attr_raw = await repo.get_attribution_summary(db, city_id)
     ward_rows = await repo.get_ward_aqi_table(db, city_id, days)
-    return aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows
+    enf_stats = await repo.get_enforcement_stats(db, city_id, days)
+    return aqi_raw, enf_rows, adv_counts, fc_raw, attr_raw, ward_rows, enf_stats
 
 
 def summary_to_csv(summary: ReportSummaryOut) -> str:

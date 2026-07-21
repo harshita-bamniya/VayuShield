@@ -28,9 +28,13 @@ from app.schemas.common import PaginationMeta
 async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
     """Pull latest readings from all active stations in a city. Returns total inserted.
 
-    Tries the CPCB data.gov.in API first (bulk fetch for the city); falls back to
-    mock data per-station when the API is unavailable or a station is unmatched.
+    Strategy:
+      1. Try WAQI per-station (requires WAQI_TOKEN) — most reliable.
+      2. Fall back to data.gov.in CPCB bulk (requires CPCB_API_KEY) — government server.
+      3. If neither works, no reading stored for that station.
     """
+    import asyncio
+
     city = await get_city_by_id(db, city_id)
     stations, _ = await get_stations_for_city(db, city_id, page=1, limit=100)
     active = [s for s in stations if s.get("is_active")]
@@ -38,27 +42,46 @@ async def poll_city_stations(db: AsyncSession, city_id: str) -> int:
         return 0
 
     now = datetime.now(UTC)
-
-    # Bulk fetch from CPCB (returns {} when key not set or call fails)
     city_name = city.name if city else ""
-    cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
 
-    readings: list[StationReadingIn] = []
-    for station in active:
-        reading = caaqms.match_station_reading(
-            cpcb_data,
-            station_code=station["external_station_code"],
-            station_id=station["id"],
+    # Try WAQI per-station first (concurrent)
+    waqi_tasks = [
+        caaqms.fetch_station_reading_waqi(
+            station_code=s["external_station_code"],
+            station_id=s["id"],
             ts=now,
         )
-        if reading is None:
-            # Fall back to mock
-            reading = await caaqms.fetch_station_readings(
+        for s in active
+    ]
+    waqi_results = await asyncio.gather(*waqi_tasks, return_exceptions=True)
+
+    readings: list[StationReadingIn] = []
+    stations_needing_cpcb: list[dict] = []
+
+    for station, result in zip(active, waqi_results):
+        if isinstance(result, StationReadingIn):
+            readings.append(result)
+        else:
+            stations_needing_cpcb.append(station)
+
+    # For any station WAQI couldn't serve, try CPCB bulk
+    if stations_needing_cpcb:
+        cpcb_data = await caaqms.fetch_city_readings_cpcb(city_name)
+        for station in stations_needing_cpcb:
+            reading = caaqms.match_station_reading(
+                cpcb_data,
                 station_code=station["external_station_code"],
                 station_id=station["id"],
                 ts=now,
             )
-        readings.append(reading)
+            if reading is not None:
+                readings.append(reading)
+
+    if not readings:
+        from app.core.logging import logger
+
+        logger.warning("No readings fetched — both WAQI and CPCB unavailable", city_id=city_id)
+        return 0
 
     return await repo.bulk_insert_readings(db, readings)
 
@@ -230,6 +253,73 @@ async def poll_fire_hotspots(db: AsyncSession, city_id: str) -> int:
         await repo.insert_fire_hotspot(db, **h)
         inserted += 1
     return inserted
+
+
+# ── Traffic Snapshots ─────────────────────────────────────────────────────────
+
+
+async def poll_traffic(db: AsyncSession, city_id: str) -> int:
+    """Fetch latest congestion data for all segments in the city. Returns count inserted."""
+    from app.modules.ingestion.connectors.traffic import fetch_traffic_segments
+
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+
+    cfg = city.config_json or {}
+    lat = cfg.get("lat", 28.61)
+    lon = cfg.get("lon", 77.21)
+    snapshots = await fetch_traffic_segments(
+        city_id=city_id, city_name=city.name, city_lat=lat, city_lon=lon
+    )
+    return await repo.insert_traffic_snapshots(db, snapshots)
+
+
+async def get_traffic_segments(db: AsyncSession, city_id: str) -> list[dict]:
+    """Return latest congestion snapshot per segment."""
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+    rows = await repo.get_latest_traffic(db, city_id)
+    return [
+        {**r, "ts": r["ts"].isoformat() if hasattr(r["ts"], "isoformat") else r["ts"]} for r in rows
+    ]
+
+
+# ── Satellite AOD ─────────────────────────────────────────────────────────────
+
+
+async def poll_satellite_aod(db: AsyncSession, city_id: str) -> dict:
+    """Fetch today's MODIS AOD for the city and store it. Returns the observation."""
+    from app.modules.ingestion.connectors.satellite import fetch_satellite_aod
+
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+
+    cfg = city.config_json or {}
+    lat = cfg.get("lat", 28.61)
+    lon = cfg.get("lon", 77.21)
+    obs = await fetch_satellite_aod(city_id=city_id, city_name=city.name, lat=lat, lon=lon)
+    await repo.upsert_satellite_obs(db, obs)
+    return {k: str(v) if hasattr(v, "isoformat") else v for k, v in obs.items()}
+
+
+async def get_satellite_obs(db: AsyncSession, city_id: str) -> list[dict]:
+    """Return last 7 days of satellite observations for a city."""
+    city = await get_city_by_id(db, city_id)
+    if not city:
+        raise NotFoundError(f"City '{city_id}' not found")
+    rows = await repo.get_satellite_obs_7d(db, city_id)
+    return [
+        {
+            **r,
+            "observed_date": r["observed_date"].isoformat()
+            if hasattr(r["observed_date"], "isoformat")
+            else r["observed_date"],
+        }
+        for r in rows
+    ]
 
 
 # ── Emission Sources ──────────────────────────────────────────────────────────

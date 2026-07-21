@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import UnauthorizedError
+from app.core.rate_limit import limiter
+from app.core.redis_blacklist import blacklist_token
 from app.core.security import bearer_scheme, create_access_token, decode_token
 from app.modules.auth.schemas import LoginRequest, RefreshRequest, TokenResponse
 from app.modules.auth.service import authenticate_user, issue_tokens
@@ -13,7 +15,8 @@ router = APIRouter(tags=["auth"])
 
 
 @router.post("/auth/login", response_model=ApiEnvelope[TokenResponse])
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, body.email, body.password)
     tokens = issue_tokens(user)
     return ApiEnvelope(data=tokens)
@@ -37,5 +40,11 @@ async def refresh(body: RefreshRequest):
 
 @router.post("/auth/logout", response_model=ApiEnvelope[dict])
 async def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)):
-    # Stateless JWT — client just discards tokens. Redis blacklist is a prod enhancement.
-    return ApiEnvelope(data={"message": "Logged out"})
+    if credentials:
+        token = credentials.credentials
+        try:
+            payload = decode_token(token, check_blacklist=False)
+            blacklist_token(token, exp=int(payload["exp"]))
+        except Exception:
+            pass  # invalid/expired token — nothing to revoke
+    return ApiEnvelope(data={"message": "Logged out", "revoked": credentials is not None})

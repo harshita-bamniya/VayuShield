@@ -31,11 +31,12 @@ async def get_aqi_stats(db: AsyncSession, city_id: str, days: int) -> dict:
                   AND sr.aqi IS NOT NULL
             ),
             current_readings AS (
-                SELECT AVG(sr.aqi) AS current_avg
+                SELECT MAX(sr.aqi) AS current_avg
                 FROM station_readings sr
                 WHERE sr.station_id IN (SELECT id FROM city_stations)
-                  AND sr.ts >= NOW() - INTERVAL '2 hours'
-                  AND sr.aqi IS NOT NULL
+                  AND sr.aqi BETWEEN 0 AND 500
+                  AND (sr.pm25 IS NULL OR sr.pm25 <= 900)
+                  AND sr.ts >= NOW() - INTERVAL '24 hours'
             ),
             hourly AS (
                 SELECT hour_bucket, AVG(aqi) AS avg_aqi
@@ -161,6 +162,39 @@ async def get_attribution_summary(db: AsyncSession, city_id: str) -> dict:
     d = dict(r._mapping)
     breakdown = {k.replace("_pct", ""): float(v or 0) for k, v in d.items() if k.endswith("_pct")}
     return {"dominant_source": d["dominant_source"], "breakdown": breakdown}
+
+
+async def get_enforcement_stats(db: AsyncSession, city_id: str, days: int) -> dict:
+    """Return enforcement action counts for the period and overall."""
+    row = await db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'completed'
+                    AND updated_at >= NOW() - :days * INTERVAL '1 day') AS completed_period,
+                COUNT(*) FILTER (WHERE status = 'dispatched') AS dispatched_active,
+                COUNT(*) FILTER (WHERE status = 'pending')    AS pending_count,
+                COUNT(*) FILTER (WHERE status = 'completed')  AS completed_total
+            FROM enforcement_queue
+            WHERE city_id = :city_id
+            """
+        ),
+        {"city_id": city_id, "days": days},
+    )
+    r = row.fetchone()
+    if not r:
+        return {
+            "completed_period": 0,
+            "dispatched_active": 0,
+            "pending_count": 0,
+            "completed_total": 0,
+        }
+    return {
+        "completed_period": int(r.completed_period or 0),
+        "dispatched_active": int(r.dispatched_active or 0),
+        "pending_count": int(r.pending_count or 0),
+        "completed_total": int(r.completed_total or 0),
+    }
 
 
 async def get_ward_aqi_table(db: AsyncSession, city_id: str, days: int) -> list[dict]:

@@ -60,7 +60,11 @@ async def get_wards_for_city(
 ) -> tuple[list[dict], int]:
     offset = (page - 1) * limit
     count_result = await db.execute(
-        select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
+        text(
+            "SELECT COUNT(*) FROM wards w WHERE w.city_id = :city_id"
+            " AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)"
+        ),
+        {"city_id": city_id},
     )
     total = count_result.scalar_one()
 
@@ -75,11 +79,30 @@ async def get_wards_for_city(
             Ward.created_at,
             func.ST_AsGeoJSON(Ward.geometry).label("geometry"),
         )
-        .where(Ward.city_id == city_id)
+        .where(
+            Ward.city_id == city_id,
+            Ward.id.in_(
+                text(
+                    "SELECT ward_id FROM stations"
+                    " WHERE ward_id IS NOT NULL"
+                    " AND city_id = :city_id AND is_active = true"
+                ).bindparams(city_id=city_id)
+            ),
+        )
         .offset(offset)
         .limit(limit)
     )
-    wards = [dict(r._mapping) for r in rows]
+    wards = []
+    for r in rows:
+        d = dict(r._mapping)
+        if d.get("geometry") and isinstance(d["geometry"], str):
+            try:
+                import json
+
+                d["geometry"] = json.loads(d["geometry"])
+            except (json.JSONDecodeError, ValueError):
+                d["geometry"] = None
+        wards.append(d)
     return wards, total
 
 
@@ -96,7 +119,17 @@ async def get_ward_by_id(db: AsyncSession, ward_id: str) -> dict | None:
         ).where(Ward.id == ward_id)
     )
     row = rows.first()
-    return dict(row._mapping) if row else None
+    if not row:
+        return None
+    d = dict(row._mapping)
+    if d.get("geometry") and isinstance(d["geometry"], str):
+        try:
+            import json
+
+            d["geometry"] = json.loads(d["geometry"])
+        except (json.JSONDecodeError, ValueError):
+            d["geometry"] = None
+    return d
 
 
 async def get_wards_for_city_with_aqi(
@@ -105,7 +138,11 @@ async def get_wards_for_city_with_aqi(
     """Same as get_wards_for_city but enriched with avg AQI from latest station readings."""
     offset = (page - 1) * limit
     count_result = await db.execute(
-        select(func.count()).select_from(Ward).where(Ward.city_id == city_id)
+        text(
+            "SELECT COUNT(*) FROM wards w WHERE w.city_id = :city_id"
+            " AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)"
+        ),
+        {"city_id": city_id},
     )
     total = count_result.scalar_one()
 
@@ -173,6 +210,7 @@ async def get_wards_for_city_with_aqi(
                 GROUP BY s.ward_id
             ) direct ON direct.ward_id = w.id
             WHERE w.city_id = :city_id
+              AND EXISTS (SELECT 1 FROM stations s WHERE s.ward_id = w.id AND s.is_active = true)
             ORDER BY w.name
             LIMIT :limit OFFSET :offset
             """
@@ -184,6 +222,13 @@ async def get_wards_for_city_with_aqi(
         d = dict(r._mapping)
         avg = d.get("avg_aqi")
         d["aqi_category"] = get_aqi_category(avg) if avg is not None else None
+        if d.get("geometry") and isinstance(d["geometry"], str):
+            try:
+                import json
+
+                d["geometry"] = json.loads(d["geometry"])
+            except (json.JSONDecodeError, ValueError):
+                d["geometry"] = None
         wards.append(d)
     return wards, total
 
@@ -194,7 +239,7 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
     if not ward:
         return None
 
-    # Latest station readings for stations assigned to this ward
+    # Latest station readings for stations assigned to this ward (full pollutant set)
     reading_rows = await db.execute(
         text(
             """
@@ -205,6 +250,10 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
                 sr.ts,
                 sr.pm25,
                 sr.pm10,
+                sr.no2,
+                sr.so2,
+                sr.co,
+                sr.o3,
                 sr.aqi,
                 sr.is_stale
             FROM stations s
@@ -222,26 +271,51 @@ async def get_ward_detail_full(db: AsyncSession, ward_id: str) -> dict | None:
         readings.append(d)
 
     valid_aqis = [r["aqi"] for r in readings if r.get("aqi") is not None]
-    avg_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else None
+    avg_aqi = max(valid_aqis) if valid_aqis else None
 
-    # Latest city-level attribution breakdown
-    attr_row = await db.execute(
-        text(
-            """
-            SELECT dominant_source, vehicular_pct, industrial_pct, construction_pct,
-                   agricultural_pct, fire_pct, other_pct
-            FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
-            """
-        ),
-        {"city_id": ward["city_id"]},
-    )
-    attr = attr_row.first()
+    # Ward-specific attribution — computed from this ward's own pollutant readings
+    from app.modules.attribution.service import _chemical_fingerprint
+
+    def _normalise(d: dict) -> dict:
+        total = sum(d.values()) or 1.0
+        return {k: v / total for k, v in d.items()}
+
+    def _avg(key: str) -> float | None:
+        vals = [r[key] for r in readings if r.get(key) is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    ward_pm25 = _avg("pm25")
+    ward_pm10 = _avg("pm10")
+    ward_no2 = _avg("no2")
+    ward_so2 = _avg("so2")
+    ward_co = _avg("co")
+    ward_o3 = _avg("o3")
+
     attribution_breakdown: dict[str, Any] = {}
     dominant_source = None
-    if attr:
-        a = dict(attr._mapping)
-        dominant_source = a.pop("dominant_source", None)
-        attribution_breakdown = {k: v for k, v in a.items() if v is not None}
+    if any(v is not None for v in [ward_pm25, ward_pm10, ward_no2, ward_so2, ward_co, ward_o3]):
+        fp = _chemical_fingerprint(ward_pm25, ward_pm10, ward_no2, ward_so2, ward_co, ward_o3)
+        norm = _normalise(fp)
+        pct_map = {k: round(v * 100, 1) for k, v in norm.items() if v > 0}
+        dominant_source = max(pct_map, key=lambda k: pct_map[k]) if pct_map else None
+        attribution_breakdown = {f"{k}_pct": v for k, v in pct_map.items()}
+    else:
+        # Fall back to city-level attribution if ward has no pollutant data
+        attr_row = await db.execute(
+            text(
+                """
+                SELECT dominant_source, vehicular_pct, industrial_pct, construction_pct,
+                       agricultural_pct, fire_pct, other_pct
+                FROM attributions WHERE city_id = :city_id ORDER BY computed_at DESC LIMIT 1
+                """
+            ),
+            {"city_id": ward["city_id"]},
+        )
+        attr = attr_row.first()
+        if attr:
+            a = dict(attr._mapping)
+            dominant_source = a.pop("dominant_source", None)
+            attribution_breakdown = {k: v for k, v in a.items() if v is not None}
 
     # Advisory count for this specific ward
     count_row = await db.execute(

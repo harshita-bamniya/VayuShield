@@ -3,7 +3,7 @@ import type { ApiEnvelope, WardDetail, WardWithAqi } from "@/lib/types";
 import type { ForecastRun } from "@/features/forecast/api";
 
 export async function fetchWardsWithAqi(cityId: string): Promise<WardWithAqi[]> {
-  const resp = await client.get<ApiEnvelope<WardWithAqi[]>>(`/cities/${cityId}/wards`);
+  const resp = await client.get<ApiEnvelope<WardWithAqi[]>>(`/cities/${cityId}/wards?limit=500`);
   return resp.data.data ?? [];
 }
 

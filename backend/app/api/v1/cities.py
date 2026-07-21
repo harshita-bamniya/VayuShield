@@ -70,7 +70,7 @@ async def get_city(
 async def list_wards(
     city_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _caller: dict = Depends(require_city_scope),
 ):

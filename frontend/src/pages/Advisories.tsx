@@ -1,18 +1,10 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { fetchAdvisories, fetchIvrAdvisory, generateAdvisories } from "@/features/advisory/api";
+import { fetchAdvisories, fetchIvrAdvisory, generateAdvisories, sendAdvisoryWhatsApp } from "@/features/advisory/api";
+import type { WhatsAppDeliveryResult } from "@/features/advisory/api";
 import type { Advisory } from "@/lib/types";
-
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/enforcement", label: "Enforcement", icon: "🚨" },
-  { to: "/advisories", label: "Advisories", icon: "📢" },
-  { to: "/reports", label: "Reports", icon: "📄" },
-  { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
-];
 
 const LANGUAGE_LABELS: Record<string, string> = {
   en: "English",
@@ -44,8 +36,33 @@ function AqiBadge({ level }: { level: string }) {
   );
 }
 
-function AdvisoryCard({ advisory }: { advisory: Advisory }) {
+function DeliveryBadge({ label, sent, icon }: { label: string; sent: boolean; icon: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${
+        sent
+          ? "bg-green-500/10 text-green-400 border-green-500/30"
+          : "bg-slate-800 text-slate-500 border-slate-700"
+      }`}
+    >
+      {icon} {label} {sent && "✓"}
+    </span>
+  );
+}
+
+function AdvisoryCard({
+  advisory,
+  cityId,
+  canSend,
+}: {
+  advisory: Advisory;
+  cityId: string;
+  canSend: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [deliveryResult, setDeliveryResult] = useState<WhatsAppDeliveryResult | null>(null);
+
   const langLabel = LANGUAGE_LABELS[advisory.language] ?? advisory.language.toUpperCase();
   const dateStr = new Date(advisory.created_at).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -55,13 +72,29 @@ function AdvisoryCard({ advisory }: { advisory: Advisory }) {
     minute: "2-digit",
   });
 
+  const isWhatsappSent = advisory.channel === "whatsapp" || deliveryResult?.status === "sent" || deliveryResult?.status === "mock";
+  const sentTime = deliveryResult?.sent_at
+    ? new Date(deliveryResult.sent_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+    : advisory.sent_at
+    ? new Date(advisory.sent_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  async function handleSendWhatsApp() {
+    setSending(true);
+    try {
+      const result = await sendAdvisoryWhatsApp(cityId, advisory.id);
+      setDeliveryResult(result);
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-colors">
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-colors flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-white leading-snug mb-1">
-            {advisory.title}
-          </h3>
+          <h3 className="text-sm font-semibold text-white leading-snug mb-1">{advisory.title}</h3>
           <p className="text-xs text-slate-500">{dateStr}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -73,11 +106,9 @@ function AdvisoryCard({ advisory }: { advisory: Advisory }) {
       </div>
 
       {advisory.dominant_source && (
-        <div className="flex items-center gap-1.5 mb-3">
+        <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">Primary source:</span>
-          <span className="text-xs font-medium text-blue-400 capitalize">
-            {advisory.dominant_source}
-          </span>
+          <span className="text-xs font-medium text-blue-400 capitalize">{advisory.dominant_source}</span>
         </div>
       )}
 
@@ -86,17 +117,60 @@ function AdvisoryCard({ advisory }: { advisory: Advisory }) {
       </p>
       {advisory.body.length > 200 && (
         <button
-          className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          className="text-xs text-blue-400 hover:text-blue-300 transition-colors self-start"
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? "Show less" : "Read more"}
         </button>
       )}
 
-      <div className="mt-3 pt-3 border-t border-slate-800 flex items-center gap-2">
-        <span className="text-xs text-slate-600 capitalize">{advisory.channel}</span>
-        {advisory.sent_at && (
-          <span className="text-xs text-green-500">✓ Sent</span>
+      {/* Delivery channels */}
+      <div className="pt-3 border-t border-slate-800 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <DeliveryBadge label="Web" sent icon="🌐" />
+          <DeliveryBadge label="IVR" sent icon="📞" />
+          <DeliveryBadge label="WhatsApp" sent={isWhatsappSent} icon="💬" />
+        </div>
+
+        {/* WhatsApp delivery log */}
+        {deliveryResult && (
+          <div
+            className={`rounded-lg px-3 py-2 text-xs font-mono border ${
+              deliveryResult.status === "error"
+                ? "bg-red-500/10 border-red-500/30 text-red-400"
+                : "bg-green-500/10 border-green-500/30 text-green-300"
+            }`}
+          >
+            {deliveryResult.status === "error" ? (
+              <span>✗ Failed: {deliveryResult.error}</span>
+            ) : (
+              <span>
+                {deliveryResult.mock ? "🔵 Mock delivery" : "✓ Sent"} → {deliveryResult.phone} at{" "}
+                {sentTime} · SID: {deliveryResult.sid}
+                {deliveryResult.mock && (
+                  <span className="text-slate-500"> (set TWILIO_ENABLED=true for live)</span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Send button */}
+        {canSend && !isWhatsappSent && (
+          <button
+            onClick={handleSendWhatsApp}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 hover:text-green-300 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {sending ? (
+              <>
+                <span className="w-3 h-3 rounded-full border-2 border-green-400 border-t-transparent animate-spin" />
+                Sending…
+              </>
+            ) : (
+              <>💬 Send WhatsApp</>
+            )}
+          </button>
         )}
       </div>
     </div>
@@ -104,8 +178,7 @@ function AdvisoryCard({ advisory }: { advisory: Advisory }) {
 }
 
 export default function Advisories() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { selectedCityId } = useCities();
   const queryClient = useQueryClient();
 
@@ -141,62 +214,11 @@ export default function Advisories() {
 
   const canGenerate = user?.role === "admin" || user?.role === "sysadmin";
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
   return (
-    <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-sm">
-              🌬️
-            </div>
-            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-500/20 text-blue-300"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="px-3 py-4 border-t border-slate-800">
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs text-slate-500">Signed in as</p>
-            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 text-white">
         {/* Topbar */}
         <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
           <h1 className="text-lg font-semibold text-white">Public Advisories</h1>
@@ -323,12 +345,11 @@ export default function Advisories() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {items.map((adv) => (
-                <AdvisoryCard key={adv.id} advisory={adv} />
+                <AdvisoryCard key={adv.id} advisory={adv} cityId={selectedCityId!} canSend={canGenerate} />
               ))}
             </div>
           )}
         </main>
-      </div>
     </div>
   );
 }

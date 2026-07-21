@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import RoleGuard from "@/components/RoleGuard";
+import AppLayout from "@/components/AppLayout";
 import client from "@/lib/apiClient";
 import { useAuth } from "@/features/auth/useAuth";
 import Advisories from "@/pages/Advisories";
@@ -66,7 +67,7 @@ export default function App() {
             path="/dashboard"
             element={
               <RoleGuard>
-                <Dashboard />
+                <AppLayout><Dashboard /></AppLayout>
               </RoleGuard>
             }
           />
@@ -74,7 +75,7 @@ export default function App() {
             path="/wards/:id"
             element={
               <RoleGuard>
-                <WardDetail />
+                <AppLayout><WardDetail /></AppLayout>
               </RoleGuard>
             }
           />
@@ -82,7 +83,7 @@ export default function App() {
             path="/enforcement"
             element={
               <RoleGuard>
-                <Enforcement />
+                <AppLayout><Enforcement /></AppLayout>
               </RoleGuard>
             }
           />
@@ -90,7 +91,7 @@ export default function App() {
             path="/advisories"
             element={
               <RoleGuard>
-                <Advisories />
+                <AppLayout><Advisories /></AppLayout>
               </RoleGuard>
             }
           />
@@ -98,7 +99,7 @@ export default function App() {
             path="/admin/cities"
             element={
               <RoleGuard roles={["sysadmin"]}>
-                <AdminCitiesPage />
+                <AppLayout><AdminCitiesPage /></AppLayout>
               </RoleGuard>
             }
           />
@@ -106,7 +107,7 @@ export default function App() {
             path="/reports"
             element={
               <RoleGuard roles={["admin", "sysadmin"]}>
-                <ReportsPage />
+                <AppLayout><ReportsPage /></AppLayout>
               </RoleGuard>
             }
           />
@@ -114,7 +115,7 @@ export default function App() {
             path="/inspector"
             element={
               <RoleGuard roles={["inspector", "sysadmin"]}>
-                <InspectorPage />
+                <AppLayout><InspectorPage /></AppLayout>
               </RoleGuard>
             }
           />
@@ -123,7 +124,7 @@ export default function App() {
             path="/compare"
             element={
               <RoleGuard roles={["sysadmin"]}>
-                <ComparePage />
+                <AppLayout><ComparePage /></AppLayout>
               </RoleGuard>
             }
           />

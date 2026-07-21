@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.aqi import aqi_category
-from app.core.claude_client import generate_text
+from app.core.llm_client import generate_text
 from app.modules.advisory import repository as repo
 from app.modules.advisory.schemas import AdvisoryGenerateResponse, AdvisoryOut
 
@@ -571,6 +571,43 @@ def build_ivr_text(advisory: AdvisoryOut, language: str = "en") -> str:
         ),
     }
     return _IVR.get(language, _IVR["en"])
+
+
+async def send_advisory_whatsapp(
+    db: AsyncSession,
+    advisory_id: str,
+    city_id: str,
+    phone: str | None = None,
+) -> dict:
+    """Send a single advisory via WhatsApp (mock or real) and mark it sent in DB."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import text
+
+    from app.modules.advisory.connectors.whatsapp import send_whatsapp_advisory
+
+    advisory = await get_advisory(db, advisory_id, city_id)
+    if not advisory:
+        return {"error": "Advisory not found"}
+
+    # Build a compact WhatsApp message (≤1000 chars)
+    message = f"*{advisory.title}*\n\n{advisory.body}"
+
+    result = await send_whatsapp_advisory(
+        phone=phone,
+        message=message,
+        advisory_id=advisory_id,
+        language=advisory.language,
+    )
+
+    if result["status"] in ("sent", "mock"):
+        await db.execute(
+            text("UPDATE advisories SET channel = 'whatsapp', sent_at = :ts WHERE id = :id"),
+            {"ts": datetime.now(UTC), "id": advisory_id},
+        )
+        await db.commit()
+
+    return result
 
 
 async def get_ivr_advisory(

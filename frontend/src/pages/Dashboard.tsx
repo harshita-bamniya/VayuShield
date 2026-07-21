@@ -1,9 +1,9 @@
-import { useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
-import { fetchCities, fetchCity, fetchFireHotspots, type CityWithCounts } from "@/features/cities/api";
+import { fetchCities, fetchCity, fetchFireHotspots, fetchSatelliteObs, fetchTrafficSegments, type CityWithCounts } from "@/features/cities/api";
 import { fetchForecast } from "@/features/forecast/api";
 import ForecastChart from "@/features/forecast/ForecastChart";
 import { fetchPendingCount } from "@/features/enforcement/api";
@@ -11,6 +11,21 @@ import { fetchAdvisoryCount } from "@/features/advisory/api";
 import { fetchWardsWithAqi } from "@/features/wards/api";
 import WardMap from "@/components/WardMap";
 import client from "@/lib/apiClient";
+
+interface AqiAlert {
+  id: string;
+  alert_level: string;
+  aqi_value: number;
+  dominant_source: string | null;
+  triggered_at: string;
+  resolved_at: string | null;
+  is_active: boolean;
+}
+
+async function fetchAlerts(cityId: string): Promise<AqiAlert[]> {
+  const resp = await client.get<{ data: AqiAlert[] }>(`/cities/${cityId}/alerts?limit=5`);
+  return resp.data.data ?? [];
+}
 
 interface AttributionResult {
   dominant_source: string | null;
@@ -22,18 +37,10 @@ interface AttributionResult {
 }
 
 async function fetchAttribution(cityId: string): Promise<AttributionResult> {
-  const resp = await client.get<{ data: AttributionResult }>(`/cities/${cityId}/attribution`);
+  const resp = await client.get<{ data: AttributionResult }>(`/cities/${cityId}/attribution?recompute=true`);
   return resp.data.data!;
 }
 
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊", sysadmin: false },
-  { to: "/compare", label: "Compare Cities", icon: "🗺️", sysadmin: true },
-  { to: "/enforcement", label: "Enforcement", icon: "🚨", sysadmin: false },
-  { to: "/advisories", label: "Advisories", icon: "📢", sysadmin: false },
-  { to: "/reports", label: "Reports", icon: "📄", sysadmin: false },
-  { to: "/admin/cities", label: "City Admin", icon: "🏙️", sysadmin: false },
-];
 
 function aqiCategory(aqi: number): string {
   if (aqi <= 50) return "Good";
@@ -55,7 +62,7 @@ function aqiColor(aqi: number): string {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { selectedCityId, selectedCity, setSelectedCity } = useCities();
 
   const isSysadmin = user?.role === "sysadmin";
@@ -123,8 +130,39 @@ export default function Dashboard() {
     staleTime: 1000 * 60 * 10,
   });
 
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["alerts", selectedCityId],
+    queryFn: () => fetchAlerts(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const [showSatellite, setShowSatellite] = useState(false);
+  const [showTraffic, setShowTraffic] = useState(false);
+
+  const { data: trafficSegments = [] } = useQuery({
+    queryKey: ["traffic", selectedCityId],
+    queryFn: () => fetchTrafficSegments(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 5,
+  });
+
+  const { data: satelliteObs = [] } = useQuery({
+    queryKey: ["satellite-obs", selectedCityId],
+    queryFn: () => fetchSatelliteObs(selectedCityId!),
+    enabled: !!selectedCityId,
+    staleTime: 1000 * 60 * 60, // 1h — daily data
+  });
+
   const displayCity = selectedCity;
-  const currentAqi = forecast?.points[0]?.predicted_aqi;
+  const currentAqi = attribution?.aqi ?? forecast?.points[0]?.predicted_aqi;
+  const latestSat = satelliteObs[0] ?? null;
+
+  const avgCongestion = trafficSegments.length > 0
+    ? trafficSegments.reduce((s, t) => s + t.congestion_ratio, 0) / trafficSegments.length
+    : null;
+  const heavySegments = trafficSegments.filter((t) => t.congestion_ratio >= 2.5).length;
 
   // Map center: read from city config_json lat/lon, fall back to Delhi
   const mapCenter: [number, number] = (() => {
@@ -136,7 +174,7 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      label: "City AQI",
+      label: "City AQI (Max)",
       value: currentAqi != null ? String(currentAqi) : "—",
       desc: currentAqi != null ? aqiCategory(currentAqi) : "Loading…",
       color: currentAqi != null ? aqiColor(currentAqi) : "text-slate-400",
@@ -161,62 +199,8 @@ export default function Dashboard() {
     },
   ];
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
   return (
-    <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 border border-blue-400 border-opacity-40 flex items-center justify-center text-sm">
-              🌬️
-            </div>
-            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.filter((item) => !item.sysadmin || isSysadmin).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-500 bg-opacity-20 text-blue-300"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="px-3 py-4 border-t border-slate-800">
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs text-slate-500">Signed in as</p>
-            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-blue-500 bg-opacity-20 text-blue-400 uppercase tracking-wide font-semibold">
-              {user?.role}
-            </span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 text-white">
         {/* Topbar */}
         <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
           <div className="flex items-center gap-3">
@@ -389,9 +373,33 @@ export default function Dashboard() {
           <div className="grid lg:grid-cols-2 gap-4 mb-4">
             {/* Ward AQI map */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style={{ height: 340 }}>
-              <div className="px-4 pt-3 pb-2 border-b border-slate-800">
-                <p className="text-sm font-semibold text-slate-200">Ward AQI Map</p>
-                <p className="text-xs text-slate-500">Click a ward to view details</p>
+              <div className="px-4 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">Ward AQI Map</p>
+                  <p className="text-xs text-slate-500">Click a ward to view details</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowTraffic((v) => !v)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      showTraffic
+                        ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    🚗 Traffic
+                  </button>
+                  <button
+                    onClick={() => setShowSatellite((v) => !v)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      showSatellite
+                        ? "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    🛰 Satellite AOD
+                  </button>
+                </div>
               </div>
               <div style={{ height: 290 }}>
                 {wards.length > 0 ? (
@@ -399,7 +407,10 @@ export default function Dashboard() {
                     wards={wards}
                     onWardClick={(wardId) => navigate(`/wards/${wardId}`)}
                     fireHotspots={fireHotspots}
+                    trafficSegments={trafficSegments}
                     center={mapCenter}
+                    showSatellite={showSatellite}
+                    showTraffic={showTraffic}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-slate-600 text-sm">
@@ -427,8 +438,240 @@ export default function Dashboard() {
               />
             ) : null}
           </div>
+          {/* AQI Alerts */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-200">AQI Alerts</p>
+                <p className="text-xs text-slate-500 mt-0.5">Recent threshold breaches</p>
+              </div>
+              {alerts.some((a) => a.is_active) && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-1 rounded">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  Active
+                </span>
+              )}
+            </div>
+            {alerts.length === 0 ? (
+              <p className="text-sm text-slate-600 py-4 text-center">No recent alerts</p>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert) => {
+                  const levelColor =
+                    alert.alert_level === "critical" ? "text-red-400 bg-red-500/10 border-red-500/20"
+                    : alert.alert_level === "warning" ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
+                    : "text-yellow-400 bg-yellow-500/10 border-yellow-500/20";
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${levelColor}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">
+                          {alert.alert_level === "critical" ? "🚨" : "⚠️"}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold capitalize">{alert.alert_level} — AQI {alert.aqi_value}</p>
+                          <p className="text-xs opacity-70 mt-0.5">
+                            {alert.dominant_source ? `Source: ${alert.dominant_source} · ` : ""}
+                            {new Date(alert.triggered_at).toLocaleString("en-IN", {
+                              timeZone: "Asia/Kolkata",
+                              hour12: true,
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${alert.is_active ? "bg-red-500/20 text-red-300" : "bg-slate-700 text-slate-400"}`}>
+                        {alert.is_active ? "Active" : "Resolved"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* Satellite vs Ground Station comparison */}
+          {(latestSat || satelliteObs.length > 0) && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">🛰 Satellite vs Ground Station</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    MODIS Terra AOD → estimated PM2.5 vs CAAQMS ground readings
+                    {latestSat?.is_mock && (
+                      <span className="ml-2 text-slate-600">(mock — set EARTHDATA_TOKEN for real data)</span>
+                    )}
+                  </p>
+                </div>
+                {latestSat && (
+                  <span className="text-xs text-slate-500">
+                    Latest: {latestSat.observed_date}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {/* Satellite AOD */}
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-1">AOD (550nm)</p>
+                  <p className={`text-2xl font-bold font-mono ${
+                    latestSat?.aod_value == null ? "text-slate-500"
+                    : latestSat.aod_value >= 0.6 ? "text-red-400"
+                    : latestSat.aod_value >= 0.4 ? "text-orange-400"
+                    : latestSat.aod_value >= 0.2 ? "text-yellow-400"
+                    : "text-green-400"
+                  }`}>
+                    {latestSat?.aod_value != null ? latestSat.aod_value.toFixed(3) : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">unitless</p>
+                </div>
+
+                {/* Satellite-estimated PM2.5 */}
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-1">Sat. PM2.5 est.</p>
+                  <p className="text-2xl font-bold font-mono text-sky-400">
+                    {latestSat?.estimated_pm25 != null ? latestSat.estimated_pm25.toFixed(1) : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">µg/m³ (AOD×120)</p>
+                </div>
+
+                {/* Ground PM2.5 */}
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-1">Ground PM2.5</p>
+                  <p className="text-2xl font-bold font-mono text-slate-200">
+                    {attribution?.pollutant_snapshot?.pm25 != null
+                      ? attribution.pollutant_snapshot.pm25.toFixed(1)
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">µg/m³ (CAAQMS)</p>
+                </div>
+
+                {/* Bias */}
+                <div className="bg-slate-800 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-1">Sat − Ground bias</p>
+                  {latestSat?.estimated_pm25 != null && attribution?.pollutant_snapshot?.pm25 != null ? (() => {
+                    const bias = latestSat.estimated_pm25! - attribution.pollutant_snapshot!.pm25!;
+                    return (
+                      <>
+                        <p className={`text-2xl font-bold font-mono ${bias > 10 ? "text-red-400" : bias < -10 ? "text-blue-400" : "text-green-400"}`}>
+                          {bias > 0 ? "+" : ""}{bias.toFixed(1)}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          {Math.abs(bias) < 10 ? "Good agreement" : bias > 0 ? "Sat overestimate" : "Sat underestimate"}
+                        </p>
+                      </>
+                    );
+                  })() : (
+                    <p className="text-2xl font-bold font-mono text-slate-500">—</p>
+                  )}
+                </div>
+              </div>
+
+              {/* 7-day AOD trend mini-bars */}
+              {satelliteObs.length > 1 && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-2">7-day AOD trend</p>
+                  <div className="flex items-end gap-1 h-12">
+                    {[...satelliteObs].reverse().map((obs) => {
+                      const pct = Math.min(100, ((obs.aod_value ?? 0) / 1.0) * 100);
+                      const barColor = (obs.aod_value ?? 0) >= 0.6 ? "bg-red-500"
+                        : (obs.aod_value ?? 0) >= 0.4 ? "bg-orange-400"
+                        : (obs.aod_value ?? 0) >= 0.2 ? "bg-yellow-400"
+                        : "bg-green-500";
+                      return (
+                        <div key={obs.observed_date} className="flex-1 flex flex-col items-center gap-1" title={`${obs.observed_date}: AOD ${obs.aod_value?.toFixed(3) ?? "—"}`}>
+                          <div className="w-full flex items-end justify-center" style={{ height: 40 }}>
+                            <div
+                              className={`w-full rounded-sm ${barColor} opacity-80`}
+                              style={{ height: `${Math.max(4, pct)}%` }}
+                            />
+                          </div>
+                          <span className="text-slate-600" style={{ fontSize: 8 }}>
+                            {obs.observed_date.slice(5)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Traffic congestion panel */}
+          {trafficSegments.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">🚗 Live Traffic Congestion</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    TomTom Flow API — congestion ratio = free-flow / current speed
+                    {trafficSegments[0]?.is_mock && (
+                      <span className="ml-2 text-slate-600">(mock — set TOMTOM_API_KEY for live)</span>
+                    )}
+                  </p>
+                </div>
+                <div className="text-right">
+                  {avgCongestion != null && (
+                    <span className={`text-sm font-bold font-mono ${
+                      avgCongestion >= 2.5 ? "text-red-400"
+                      : avgCongestion >= 1.5 ? "text-orange-400"
+                      : "text-green-400"
+                    }`}>
+                      {avgCongestion.toFixed(2)}× avg
+                    </span>
+                  )}
+                  {heavySegments > 0 && (
+                    <p className="text-xs text-red-400 mt-0.5">{heavySegments} heavily congested</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {trafficSegments.map((seg) => {
+                  const pct = Math.min(100, (seg.congestion_ratio / 4.0) * 100);
+                  const color = seg.congestion_ratio >= 2.5 ? "bg-red-500"
+                    : seg.congestion_ratio >= 1.5 ? "bg-orange-400"
+                    : seg.congestion_ratio >= 1.0 ? "bg-lime-500"
+                    : "bg-green-500";
+                  const label = seg.congestion_ratio >= 2.5 ? "Heavy"
+                    : seg.congestion_ratio >= 1.5 ? "Moderate"
+                    : seg.congestion_ratio >= 1.0 ? "Normal"
+                    : "Clear";
+                  return (
+                    <div key={seg.segment_id} className="flex items-center gap-3">
+                      <span className="text-xs text-slate-400 w-44 truncate flex-shrink-0" title={seg.segment_name ?? seg.segment_id}>
+                        {seg.segment_name ?? seg.segment_id}
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-mono text-slate-300 w-10 text-right flex-shrink-0">
+                        {seg.congestion_ratio.toFixed(2)}×
+                      </span>
+                      <span className={`text-xs w-16 flex-shrink-0 ${
+                        label === "Heavy" ? "text-red-400"
+                        : label === "Moderate" ? "text-orange-400"
+                        : label === "Normal" ? "text-lime-400"
+                        : "text-green-400"
+                      }`}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {avgCongestion != null && avgCongestion > 1.5 && (
+                <p className="text-xs text-orange-400/70 mt-3 border-t border-slate-800 pt-2">
+                  ⚡ Congestion signal active — vehicular attribution weight boosted by{" "}
+                  {Math.round(Math.min((avgCongestion - 1.5) / 1.5, 1.0) * 15)}% in attribution engine
+                </p>
+              )}
+            </div>
+          )}
         </main>
-      </div>
     </div>
   );
 }

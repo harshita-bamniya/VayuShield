@@ -1,12 +1,17 @@
 """
-Seed the database on first boot. Idempotent — skips rows that already exist.
+Seed the database on first boot. Idempotent — safe to run on every restart.
 Seeds:
-  - sysadmin user (Module 00/01)
-  - Delhi pilot city + 2 wards + 2 CAAQMS stations (Module 02)
-  - 7 days of hourly station readings + emission sources (Module 03)
+  - sysadmin user
+  - 7 major Indian cities: Delhi, Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata, Pune
+  - Wards per city loaded from real Datameet GeoJSON (CC BY-SA 2.5 India)
+  - CAAQMS stations with real GPS coordinates matching WAQI slug map in caaqms.py
+  - PostGIS auto-assigns each station to its nearest ward after insert
+  - Live AQI readings are fetched from WAQI at runtime — nothing is mocked here
+  - Delhi-only: emission sources, AQI alerts, enforcement queue, advisories
 """
 
 import json
+import math
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -16,52 +21,158 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging import logger
+from app.db.geodata_loader import CITY_WARD_LOADERS
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Stable IDs so seeds are idempotent across restarts
+# ── Stable city IDs ───────────────────────────────────────────────────────────
+
 DELHI_CITY_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-WARD_CP_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-WARD_DWARKA_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012"
+MUMBAI_CITY_ID = "b1b2c3d4-e5f6-7890-abcd-ef1234567891"
+BENGALURU_CITY_ID = "c1b2c3d4-e5f6-7890-abcd-ef1234567892"
+HYDERABAD_CITY_ID = "d1b2c3d4-e5f6-7890-abcd-ef1234567893"
+CHENNAI_CITY_ID = "e1b2c3d4-e5f6-7890-abcd-ef1234567894"
+KOLKATA_CITY_ID = "f1b2c3d4-e5f6-7890-abcd-ef1234567895"
+PUNE_CITY_ID = "a2b2c3d4-e5f6-7890-abcd-ef1234567896"
+
+# Kept stable for Delhi alert/enforcement seeds that reference them directly
 STATION_AV_ID = "d4e5f6a7-b8c9-0123-def0-123456789013"
 STATION_ITO_ID = "e5f6a7b8-c9d0-1234-ef01-234567890124"
 
-# Approximate ward polygons (WGS84 — simplified for demo purposes)
-# Connaught Place / Central Delhi ward
-WARD_CP_GEOJSON = {
-    "type": "MultiPolygon",
-    "coordinates": [
-        [
-            [
-                [77.1900, 28.6200],
-                [77.2400, 28.6200],
-                [77.2400, 28.6450],
-                [77.1900, 28.6450],
-                [77.1900, 28.6200],
-            ]
-        ]
-    ],
-}
+# Stable ward IDs used by test fixtures — must match test files exactly
+WARD_DWARKA_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012"
+WARD_CP_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
 
-# Dwarka (West Delhi) ward
-WARD_DWARKA_GEOJSON = {
-    "type": "MultiPolygon",
-    "coordinates": [
-        [
-            [
-                [77.0000, 28.5500],
-                [77.0900, 28.5500],
-                [77.0900, 28.6200],
-                [77.0000, 28.6200],
-                [77.0000, 28.5500],
-            ]
-        ]
-    ],
-}
 
-# Real CAAQMS station locations (DPCC network)
-STATION_AV_GEOJSON = {"type": "Point", "coordinates": [77.3154, 28.6469]}  # Anand Vihar
-STATION_ITO_GEOJSON = {"type": "Point", "coordinates": [77.2403, 28.6273]}  # ITO
+def _pt(lon: float, lat: float) -> dict:
+    return {"type": "Point", "coordinates": [lon, lat]}
+
+
+# ── City / station master data ────────────────────────────────────────────────
+# Wards are loaded from real GeoJSON files in app/db/geodata/ (Datameet, CC BY-SA).
+# Station external_station_code MUST match keys in caaqms._WAQI_SLUGS.
+
+CITY_CONFIGS = [
+    {
+        "id": DELHI_CITY_ID,
+        "name": "Delhi",
+        "state": "Delhi",
+        "lat": 28.6139,
+        "lon": 77.2090,
+        "stations": [
+            {
+                "id": STATION_AV_ID,
+                "code": "DPCC_DWARKA_SEC8",
+                "name": "Dwarka Sector 8",
+                "coords": [77.0460, 28.5921],
+            },
+            {"id": STATION_ITO_ID, "code": "DPCC_ITO", "name": "ITO", "coords": [77.2403, 28.6273]},
+            {"code": "DPCC_ANAND_VIHAR", "name": "Anand Vihar", "coords": [77.3120, 28.6476]},
+            {"code": "DPCC_RK_PURAM", "name": "RK Puram", "coords": [77.1722, 28.5679]},
+            {"code": "DPCC_PUNJABI_BAGH", "name": "Punjabi Bagh", "coords": [77.1339, 28.6686]},
+            {"code": "DPCC_ROHINI", "name": "Rohini", "coords": [77.1158, 28.7381]},
+            {"code": "DPCC_OKHLA_PH2", "name": "Okhla Phase 2", "coords": [77.2735, 28.5355]},
+            {"code": "DPCC_MANDIR_MARG", "name": "Mandir Marg", "coords": [77.2043, 28.6369]},
+            {"code": "DPCC_SHADIPUR", "name": "Shadipur", "coords": [77.1447, 28.6516]},
+            {"code": "DPCC_NARELA", "name": "Narela", "coords": [77.0908, 28.8546]},
+            {"code": "DPCC_BAWANA", "name": "Bawana", "coords": [77.0267, 28.7807]},
+            {"code": "DPCC_MUNDKA", "name": "Mundka", "coords": [76.9780, 28.6700]},
+            {"code": "DPCC_PATPARGANJ", "name": "Patparganj", "coords": [77.2956, 28.6223]},
+            {"code": "DPCC_SONIA_VIHAR", "name": "Sonia Vihar", "coords": [77.2440, 28.7232]},
+            {"code": "DPCC_VIVEK_VIHAR", "name": "Vivek Vihar", "coords": [77.3150, 28.6720]},
+            {"code": "IITM_PUSA", "name": "IITM Pusa", "coords": [77.1508, 28.6394]},
+        ],
+    },
+    {
+        "id": MUMBAI_CITY_ID,
+        "name": "Mumbai",
+        "state": "Maharashtra",
+        "lat": 19.0760,
+        "lon": 72.8777,
+        "stations": [
+            {"code": "MPCB_COLABA", "name": "Colaba", "coords": [72.8258, 18.9067]},
+            {"code": "MPCB_MAZGAON", "name": "Mazgaon", "coords": [72.8396, 18.9573]},
+            {"code": "MPCB_WORLI", "name": "Worli", "coords": [72.8178, 19.0175]},
+            {"code": "MPCB_CHEMBUR", "name": "Chembur", "coords": [72.8996, 19.0631]},
+            {"code": "MPCB_BANDRA", "name": "Bandra", "coords": [72.8347, 19.0596]},
+            {"code": "MPCB_KURLA", "name": "Kurla", "coords": [72.8794, 19.0654]},
+            {"code": "MPCB_ANDHERI", "name": "Andheri", "coords": [72.8563, 19.1197]},
+            {"code": "MPCB_MALAD", "name": "Malad", "coords": [72.8481, 19.1868]},
+            {"code": "MPCB_BORIVALI", "name": "Borivali", "coords": [72.8561, 19.2307]},
+            {"code": "MPCB_MULUND", "name": "Mulund", "coords": [72.9567, 19.1726]},
+        ],
+    },
+    {
+        "id": BENGALURU_CITY_ID,
+        "name": "Bengaluru",
+        "state": "Karnataka",
+        "lat": 12.9716,
+        "lon": 77.5946,
+        "stations": [
+            {"code": "KSPCB_BTM", "name": "BTM Layout", "coords": [77.6101, 12.9165]},
+            {"code": "KSPCB_SILK_BOARD", "name": "Silk Board", "coords": [77.6229, 12.9177]},
+            {
+                "code": "KSPCB_CITY_RAILWAY",
+                "name": "City Railway Station",
+                "coords": [77.5747, 12.9774],
+            },
+            {"code": "KSPCB_HEBBAL", "name": "Hebbal", "coords": [77.5946, 13.0350]},
+            {"code": "KSPCB_PEENYA", "name": "Peenya", "coords": [77.5196, 13.0289]},
+        ],
+    },
+    {
+        "id": HYDERABAD_CITY_ID,
+        "name": "Hyderabad",
+        "state": "Telangana",
+        "lat": 17.3850,
+        "lon": 78.4867,
+        "stations": [
+            {"code": "TSPCB_SANATHNAGAR", "name": "Sanathnagar", "coords": [78.4255, 17.4379]},
+            {"code": "TSPCB_SOMAJIGUDA", "name": "Somajiguda", "coords": [78.4564, 17.4239]},
+            {"code": "TSPCB_ZOO_PARK", "name": "Zoo Park", "coords": [78.4614, 17.3497]},
+            {"code": "TSPCB_NACHARAM", "name": "Nacharam", "coords": [78.5601, 17.4126]},
+        ],
+    },
+    {
+        "id": CHENNAI_CITY_ID,
+        "name": "Chennai",
+        "state": "Tamil Nadu",
+        "lat": 13.0827,
+        "lon": 80.2707,
+        "stations": [
+            {"code": "TNPCB_ALANDUR", "name": "Alandur", "coords": [80.2070, 12.9960]},
+            {"code": "TNPCB_VELACHERY", "name": "Velachery", "coords": [80.2209, 12.9755]},
+            {"code": "TNPCB_MANALI", "name": "Manali", "coords": [80.2636, 13.1670]},
+        ],
+    },
+    {
+        "id": KOLKATA_CITY_ID,
+        "name": "Kolkata",
+        "state": "West Bengal",
+        "lat": 22.5726,
+        "lon": 88.3639,
+        "stations": [
+            {"code": "WBPCB_BALLYGUNGE", "name": "Ballygunge", "coords": [88.3639, 22.5264]},
+            {"code": "WBPCB_JADAVPUR", "name": "Jadavpur", "coords": [88.3704, 22.4993]},
+            {"code": "WBPCB_FORT_WILLIAM", "name": "Fort William", "coords": [88.3426, 22.5586]},
+        ],
+    },
+    {
+        "id": PUNE_CITY_ID,
+        "name": "Pune",
+        "state": "Maharashtra",
+        "lat": 18.5204,
+        "lon": 73.8567,
+        "stations": [
+            {"code": "MPCB_SHIVAJINAGAR", "name": "Shivajinagar", "coords": [73.8483, 18.5308]},
+            {"code": "MPCB_KATRAJ", "name": "Katraj", "coords": [73.8590, 18.4560]},
+            {"code": "MPCB_HADAPSAR", "name": "Hadapsar", "coords": [73.9378, 18.5089]},
+        ],
+    },
+]
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 
 async def seed_admin() -> None:
@@ -71,14 +182,127 @@ async def seed_admin() -> None:
         logger.warning("Seed skipped (DB not ready yet)", error=str(exc))
 
 
+async def _seed_test_wards_and_readings(session) -> None:
+    """Seed two stable-ID Delhi wards and recent station readings for CI tests.
+
+    Tests reference WARD_CP_ID and WARD_DWARKA_ID by hardcoded UUID.  GeoJSON
+    wards use random UUIDs so those IDs would never exist without this step.
+    Readings are skipped when they already exist (idempotent).
+    """
+    # Insert stable test wards with bounding-box polygons that cover the stations
+    for ward_id, ward_name, geom_json in [
+        (
+            WARD_DWARKA_ID,
+            "Dwarka",
+            '{"type":"Polygon","coordinates":[[[77.00,28.55],[77.10,28.55],'
+            "[77.10,28.65],[77.00,28.65],[77.00,28.55]]]}",
+        ),
+        (
+            WARD_CP_ID,
+            "Connaught Place",
+            '{"type":"Polygon","coordinates":[[[77.20,28.60],[77.28,28.60],'
+            "[77.28,28.66],[77.20,28.66],[77.20,28.60]]]}",
+        ),
+    ]:
+        exists = await session.execute(
+            text("SELECT id FROM wards WHERE id = :id"),
+            {"id": ward_id},
+        )
+        if not exists.fetchone():
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO wards
+                        (id, city_id, name, geometry, population,
+                         vulnerable_site_flags, created_at, updated_at)
+                    VALUES
+                        (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), NULL,
+                         '{}', NOW(), NOW())
+                    """
+                ),
+                {
+                    "id": ward_id,
+                    "city_id": DELHI_CITY_ID,
+                    "name": ward_name,
+                    "geom": geom_json,
+                },
+            )
+
+    # Force-assign the two stable stations to the stable test wards so that
+    # ward detail queries return real readings
+    await session.execute(
+        text("UPDATE stations SET ward_id = :ward_id WHERE id = :sid"),
+        {"ward_id": WARD_DWARKA_ID, "sid": STATION_AV_ID},
+    )
+    await session.execute(
+        text("UPDATE stations SET ward_id = :ward_id WHERE id = :sid"),
+        {"ward_id": WARD_CP_ID, "sid": STATION_ITO_ID},
+    )
+    await session.commit()
+
+    # Seed 7 days of hourly readings for STATION_AV_ID if none exist
+    for station_id, pm25_base, aqi_base, hours in [
+        (
+            STATION_AV_ID,
+            140.0,
+            230,
+            168,
+        ),  # 7 days — needed by test_seeded_readings_cover_multiple_hours
+        (STATION_ITO_ID, 100.0, 190, 48),  # 2 days — needed by ward detail + public summary
+    ]:
+        count_row = await session.execute(
+            text("SELECT COUNT(*) FROM station_readings WHERE station_id = :sid"),
+            {"sid": station_id},
+        )
+        if (count_row.scalar() or 0) >= hours:
+            continue  # already seeded
+
+        now = datetime.now(UTC)
+        for h in range(hours):
+            ts = now - timedelta(hours=h + 1)
+            # Simple diurnal pattern: peak at noon, trough at 4 AM
+            multiplier = 1.0 + 0.25 * math.sin(math.pi * ts.hour / 12.0)
+            pm25 = round(pm25_base * multiplier, 1)
+            pm10 = round(pm25 * 1.6, 1)
+            no2 = round(60.0 * multiplier, 1)
+            aqi = min(500, int(aqi_base * multiplier))
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO station_readings
+                        (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)
+                    VALUES
+                        (:id, :sid, :ts, :pm25, :pm10, :no2, NULL, NULL, NULL, :aqi, false)
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                {
+                    "id": str(uuid.uuid4()),
+                    "sid": station_id,
+                    "ts": ts,
+                    "pm25": pm25,
+                    "pm10": pm10,
+                    "no2": no2,
+                    "aqi": aqi,
+                },
+            )
+        await session.commit()
+
+
 async def _do_seed() -> None:
     async with AsyncSessionLocal() as session:
         await _seed_sysadmin(session)
-        await _seed_delhi(session)
-        await _seed_ingestion_data(session)
+        await _seed_all_cities(session)
+        await _auto_assign_stations_to_wards(session)
+        await _seed_test_wards_and_readings(session)
+        # Delhi-specific supplementary data
+        await _seed_delhi_emission_sources(session)
         await _seed_attribution_alerts(session)
         await _seed_enforcement_queue(session)
         await _seed_advisories(session)
+
+
+# ── Sysadmin ──────────────────────────────────────────────────────────────────
 
 
 async def _seed_sysadmin(session) -> None:
@@ -103,158 +327,163 @@ async def _seed_sysadmin(session) -> None:
     logger.info("Seed admin created", email=settings.SEED_ADMIN_EMAIL)
 
 
-async def _seed_delhi(session) -> None:
-    # City
-    exists = await session.execute(
-        text("SELECT id FROM cities WHERE id = :id"), {"id": DELHI_CITY_ID}
-    )
-    if exists.fetchone():
-        logger.info("Delhi seed already present, skipping")
-        return
+# ── Generic city seeder ───────────────────────────────────────────────────────
 
+
+async def _seed_all_cities(session) -> None:
+    for config in CITY_CONFIGS:
+        await _seed_city(session, config)
+
+
+async def _seed_city(session, config: dict) -> None:
+    city_id = config["id"]
+    name = config["name"]
+
+    # City — insert or update config_json with lat/lon
+    city_cfg = json.dumps({"lat": config.get("lat"), "lon": config.get("lon")})
     await session.execute(
         text(
             """
             INSERT INTO cities (id, name, state, timezone, config_json, created_at, updated_at)
-            VALUES (:id, 'Delhi', 'Delhi', 'Asia/Kolkata', '{}', NOW(), NOW())
+            VALUES (:id, :name, :state, 'Asia/Kolkata', :cfg, NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE SET config_json = :cfg, updated_at = NOW()
             """
         ),
-        {"id": DELHI_CITY_ID},
+        {"id": city_id, "name": name, "state": config["state"], "cfg": city_cfg},
     )
 
-    # Wards
-    await session.execute(
-        text(
-            """
-            INSERT INTO wards
-                (id, city_id, name, geometry, population,
-                 vulnerable_site_flags, created_at, updated_at)
-            VALUES
-                (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
-                 CAST(:flags AS jsonb), NOW(), NOW())
-            """
-        ),
-        {
-            "id": WARD_CP_ID,
-            "city_id": DELHI_CITY_ID,
-            "name": "Connaught Place",
-            "geom": json.dumps(WARD_CP_GEOJSON),
-            "pop": 350000,
-            "flags": json.dumps({"schools": True, "hospitals": True}),
-        },
-    )
-    await session.execute(
-        text(
-            """
-            INSERT INTO wards
-                (id, city_id, name, geometry, population,
-                 vulnerable_site_flags, created_at, updated_at)
-            VALUES
-                (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), :pop,
-                 CAST(:flags AS jsonb), NOW(), NOW())
-            """
-        ),
-        {
-            "id": WARD_DWARKA_ID,
-            "city_id": DELHI_CITY_ID,
-            "name": "Dwarka",
-            "geom": json.dumps(WARD_DWARKA_GEOJSON),
-            "pop": 1200000,
-            "flags": json.dumps({"schools": True, "hospitals": False}),
-        },
-    )
+    # Wards — load from real GeoJSON (Datameet); idempotent by city_id + name
+    ward_count = 0
+    loader = CITY_WARD_LOADERS.get(name)
+    real_wards = loader() if loader else []
+    for ward in real_wards:
+        exists = await session.execute(
+            text("SELECT id FROM wards WHERE city_id = :city_id AND name = :name"),
+            {"city_id": city_id, "name": ward["name"]},
+        )
+        if exists.fetchone():
+            continue
+        await session.execute(
+            text(
+                """
+                INSERT INTO wards
+                    (id, city_id, name, geometry, population,
+                     vulnerable_site_flags, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, :name, ST_GeomFromGeoJSON(:geom), NULL,
+                     '{}', NOW(), NOW())
+                """
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "city_id": city_id,
+                "name": ward["name"],
+                "geom": ward["geometry"],
+            },
+        )
+        ward_count += 1
 
-    # Stations
-    await session.execute(
-        text(
-            """
-            INSERT INTO stations
-                (id, city_id, ward_id, external_station_code, name,
-                 geometry, is_active, created_at, updated_at)
-            VALUES
-                (:id, :city_id, :ward_id, :code, :name,
-                 ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
-            """
-        ),
-        {
-            "id": STATION_AV_ID,
-            "city_id": DELHI_CITY_ID,
-            "ward_id": WARD_DWARKA_ID,
-            "code": "DPCC_ANAND_VIHAR",
-            "name": "Anand Vihar",
-            "geom": json.dumps(STATION_AV_GEOJSON),
-        },
-    )
-    await session.execute(
-        text(
-            """
-            INSERT INTO stations
-                (id, city_id, ward_id, external_station_code, name,
-                 geometry, is_active, created_at, updated_at)
-            VALUES
-                (:id, :city_id, :ward_id, :code, :name,
-                 ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
-            """
-        ),
-        {
-            "id": STATION_ITO_ID,
-            "city_id": DELHI_CITY_ID,
-            "ward_id": WARD_CP_ID,
-            "code": "DPCC_ITO",
-            "name": "ITO",
-            "geom": json.dumps(STATION_ITO_GEOJSON),
-        },
-    )
+    # Stations — idempotent by external_station_code (UNIQUE constraint)
+    station_count = 0
+    for st in config["stations"]:
+        lon, lat = st["coords"]
+        await session.execute(
+            text(
+                """
+                INSERT INTO stations
+                    (id, city_id, ward_id, external_station_code, name,
+                     geometry, is_active, created_at, updated_at)
+                VALUES
+                    (:id, :city_id, NULL, :code, :name,
+                     ST_GeomFromGeoJSON(:geom), true, NOW(), NOW())
+                ON CONFLICT (external_station_code) DO NOTHING
+                """
+            ),
+            {
+                "id": st.get("id", str(uuid.uuid4())),
+                "city_id": city_id,
+                "code": st["code"],
+                "name": st["name"],
+                "geom": json.dumps(_pt(lon, lat)),
+            },
+        )
+        station_count += 1
 
     await session.commit()
-    logger.info("Delhi pilot city seeded", city_id=DELHI_CITY_ID, wards=2, stations=2)
+    logger.info("City seeded", city=name, new_wards=ward_count, new_stations=station_count)
 
 
-async def _seed_ingestion_data(session) -> None:
-    """Seed 7 days of hourly station readings + known Delhi emission sources."""
-    import math
-    import random
+# ── PostGIS auto-assign stations → nearest ward ───────────────────────────────
 
-    # ── Emission sources ──────────────────────────────────────────────────────
+
+async def _auto_assign_stations_to_wards(session) -> None:
+    """Assign every unassigned station to the geographically nearest ward in its city."""
+    result = await session.execute(
+        text(
+            """
+            UPDATE stations s
+            SET ward_id = (
+                SELECT w.id
+                FROM wards w
+                WHERE w.city_id = s.city_id
+                  AND w.geometry IS NOT NULL
+                ORDER BY ST_Distance(
+                    s.geometry::geography,
+                    ST_Centroid(w.geometry)::geography
+                )
+                LIMIT 1
+            )
+            WHERE s.ward_id IS NULL
+              AND s.geometry IS NOT NULL
+            """
+        )
+    )
+    await session.commit()
+    logger.info("Station→ward auto-assignment complete", updated=result.rowcount)
+
+
+# ── Delhi supplementary data ──────────────────────────────────────────────────
+
+
+async def _seed_delhi_emission_sources(session) -> None:
     exists = await session.execute(
         text("SELECT id FROM emission_sources WHERE city_id = :city_id LIMIT 1"),
         {"city_id": DELHI_CITY_ID},
     )
     if exists.fetchone():
-        logger.info("Ingestion seed already present, skipping")
         return
 
-    emission_sources = [
+    sources = [
         {
             "id": "f1a2b3c4-d5e6-7890-abcd-ef1234567801",
             "name": "Anand Vihar Bus Depot",
             "type": "vehicular",
-            "geom": {"type": "Point", "coordinates": [77.3120, 28.6450]},
+            "coords": [77.3120, 28.6450],
             "permit_status": "active",
         },
         {
             "id": "f2a2b3c4-d5e6-7890-abcd-ef1234567802",
             "name": "Delhi Thermal Power Station",
             "type": "industrial",
-            "geom": {"type": "Point", "coordinates": [77.2800, 28.6200]},
+            "coords": [77.2800, 28.6200],
             "permit_status": "active",
         },
         {
             "id": "f3a2b3c4-d5e6-7890-abcd-ef1234567803",
             "name": "Ashram Chowk Construction Site",
             "type": "construction",
-            "geom": {"type": "Point", "coordinates": [77.2490, 28.5700]},
+            "coords": [77.2490, 28.5700],
             "permit_status": "pending",
         },
         {
             "id": "f4a2b3c4-d5e6-7890-abcd-ef1234567804",
             "name": "Haryana Border Stubble Burning Zone",
             "type": "agricultural",
-            "geom": {"type": "Point", "coordinates": [76.9500, 28.7500]},
+            "coords": [76.9500, 28.7500],
             "permit_status": "expired",
         },
     ]
-    for src in emission_sources:
+    for src in sources:
         await session.execute(
             text(
                 """
@@ -270,143 +499,24 @@ async def _seed_ingestion_data(session) -> None:
                 "city_id": DELHI_CITY_ID,
                 "name": src["name"],
                 "type": src["type"],
-                "geom": json.dumps(src["geom"]),
+                "geom": json.dumps(_pt(*src["coords"])),
                 "permit_status": src["permit_status"],
             },
         )
-
-    # ── Historical station readings (7 days, hourly) ──────────────────────────
-    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
-    start = now - timedelta(days=7)
-
-    # Try to fetch one real CPCB snapshot for Delhi to anchor the mock readings
-    _cpcb_anchor: dict[str, dict] = {}
-    try:
-        from app.modules.ingestion.connectors.caaqms import fetch_city_readings_cpcb
-
-        _cpcb_anchor = await fetch_city_readings_cpcb("Delhi")
-        if _cpcb_anchor:
-            logger.info("Seed: got CPCB anchor data", stations=len(_cpcb_anchor))
-    except Exception as _exc:
-        logger.warning("Seed: CPCB anchor fetch failed (using mock)", error=str(_exc))
-
-    # Map stable station IDs to their CPCB keys for anchor lookup
-    _STATION_CPCB_KEYS = {
-        STATION_AV_ID: "anand vihar",
-        STATION_ITO_ID: "ito",
-    }
-
-    def _real_pm25(station_id: str) -> float | None:
-        """Return live PM2.5 from CPCB anchor, or None to fall back to mock."""
-        key = _STATION_CPCB_KEYS.get(station_id, "")
-        for cpcb_key, vals in _cpcb_anchor.items():
-            if key and key in cpcb_key:
-                return vals.get("pm25")
-        return None
-
-    def make_reading(station_id: str, ts: datetime, is_latest: bool = False) -> dict:
-        hour = ts.hour
-        diurnal = 1.0 + 0.4 * (
-            math.exp(-0.5 * ((hour - 8) / 2) ** 2) + math.exp(-0.5 * ((hour - 20) / 2) ** 2)
-        )
-        base_pm25 = 120.0 * diurnal
-        # Anchor the most-recent hour to live CPCB value if available
-        real = _real_pm25(station_id) if is_latest else None
-        if real is not None and real > 0:
-            pm25 = round(real * random.uniform(0.97, 1.03), 2)
-        else:
-            pm25 = round(max(5.0, base_pm25 * random.uniform(0.85, 1.15)), 2)
-        pm10 = round(pm25 * random.uniform(1.5, 2.2), 2)
-        no2 = round(random.uniform(20, 90), 2)
-        so2 = round(random.uniform(5, 30), 2)
-        co = round(random.uniform(0.5, 3.0), 2)
-        o3 = round(random.uniform(10, 60), 2)
-        # Simple CPCB PM2.5 AQI
-        bp = [
-            (0, 30, 0, 50),
-            (30, 60, 51, 100),
-            (60, 90, 101, 200),
-            (90, 120, 201, 300),
-            (120, 250, 301, 400),
-            (250, 500, 401, 500),
-        ]
-        aqi = 500
-        for c_lo, c_hi, i_lo, i_hi in bp:
-            if c_lo <= pm25 <= c_hi:
-                aqi = round(i_lo + (i_hi - i_lo) * (pm25 - c_lo) / (c_hi - c_lo))
-                break
-        return {
-            "id": str(uuid.uuid4()),
-            "station_id": station_id,
-            "ts": ts,
-            "pm25": pm25,
-            "pm10": pm10,
-            "no2": no2,
-            "so2": so2,
-            "co": co,
-            "o3": o3,
-            "aqi": aqi,
-        }
-
-    station_ids = [STATION_AV_ID, STATION_ITO_ID]
-    batch = []
-    current = start
-    while current <= now:
-        is_latest = current == now
-        for sid in station_ids:
-            batch.append(make_reading(sid, current, is_latest=is_latest))
-        current += timedelta(hours=1)
-        # Flush every 200 rows to avoid huge transactions
-        if len(batch) >= 200:
-            for r in batch:
-                await session.execute(
-                    text(
-                        "INSERT INTO station_readings"
-                        " (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)"
-                        " VALUES"
-                        " (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)"
-                        " ON CONFLICT DO NOTHING"
-                    ),
-                    r,
-                )
-            await session.commit()
-            batch = []
-
-    for r in batch:
-        await session.execute(
-            text(
-                "INSERT INTO station_readings"
-                " (id, station_id, ts, pm25, pm10, no2, so2, co, o3, aqi, is_stale)"
-                " VALUES"
-                " (:id, :station_id, :ts, :pm25, :pm10, :no2, :so2, :co, :o3, :aqi, false)"
-                " ON CONFLICT DO NOTHING"
-            ),
-            r,
-        )
     await session.commit()
-
-    total_readings = (7 * 24) * len(station_ids)
-    logger.info(
-        "Ingestion seed complete",
-        emission_sources=len(emission_sources),
-        station_readings=total_readings,
-    )
+    logger.info("Delhi emission sources seeded", count=len(sources))
 
 
 async def _seed_attribution_alerts(session) -> None:
-    """Seed a few test AQI alerts for Delhi (Module 04)."""
     exists = await session.execute(
         text("SELECT id FROM aqi_alerts WHERE city_id = :city_id LIMIT 1"),
         {"city_id": DELHI_CITY_ID},
     )
     if exists.fetchone():
-        logger.info("Attribution alerts seed already present, skipping")
         return
 
     now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
-
     alerts = [
-        # A resolved "poor" alert from 3 days ago
         {
             "id": str(uuid.uuid4()),
             "city_id": DELHI_CITY_ID,
@@ -419,7 +529,6 @@ async def _seed_attribution_alerts(session) -> None:
             "resolved_at": now - timedelta(days=3, hours=2),
             "is_active": False,
         },
-        # A resolved "very_poor" alert from 1 day ago
         {
             "id": str(uuid.uuid4()),
             "city_id": DELHI_CITY_ID,
@@ -432,7 +541,6 @@ async def _seed_attribution_alerts(session) -> None:
             "resolved_at": now - timedelta(days=1, hours=3),
             "is_active": False,
         },
-        # An active "poor" alert right now
         {
             "id": str(uuid.uuid4()),
             "city_id": DELHI_CITY_ID,
@@ -446,7 +554,6 @@ async def _seed_attribution_alerts(session) -> None:
             "is_active": True,
         },
     ]
-
     for a in alerts:
         await session.execute(
             text(
@@ -462,20 +569,18 @@ async def _seed_attribution_alerts(session) -> None:
             a,
         )
     await session.commit()
-    logger.info("Attribution alerts seeded", count=len(alerts))
+    logger.info("Delhi AQI alerts seeded", count=len(alerts))
 
 
 async def _seed_enforcement_queue(session) -> None:
-    """Seed initial enforcement queue for Delhi (Module 06)."""
     exists = await session.execute(
         text("SELECT id FROM enforcement_queue WHERE city_id = :city_id LIMIT 1"),
         {"city_id": DELHI_CITY_ID},
     )
     if exists.fetchone():
-        logger.info("Enforcement queue seed already present, skipping")
         return
 
-    emission_source_ids = [
+    sources = [
         ("f1a2b3c4-d5e6-7890-abcd-ef1234567801", "vehicular", "active", "Anand Vihar Bus Depot"),
         (
             "f2a2b3c4-d5e6-7890-abcd-ef1234567802",
@@ -496,7 +601,6 @@ async def _seed_enforcement_queue(session) -> None:
             "Haryana Border Stubble Burning Zone",
         ),
     ]
-
     permit_weights = {"expired": 1.0, "pending": 0.6, "active": 0.2}
     source_attr = {
         "vehicular": 0.35,
@@ -505,20 +609,19 @@ async def _seed_enforcement_queue(session) -> None:
         "agricultural": 0.20,
     }
 
-    for src_id, src_type, permit_status, src_name in emission_source_ids:
+    for src_id, src_type, permit_status, src_name in sources:
         attr_w = source_attr.get(src_type, 0.1)
-        fc_w = 0.40  # moderate default forecast severity (AQI ~200)
-        permit_w = permit_weights.get(permit_status, 0.5)
-        days_w = 1.0  # never inspected
-        score = round(0.35 * attr_w + 0.30 * fc_w + 0.20 * permit_w + 0.15 * days_w, 4)
-
-        brief = (
-            f"{src_name} ({src_type}) has been assigned a priority score of {score:.2f}/1.00. "
-            f"This source accounts for approximately {attr_w * 100:.0f}% of current city "
-            f"pollution attribution; the 24-hour peak forecast AQI is 200. "
-            f"The permit is {permit_status} and the site has never been inspected."
+        score = round(
+            0.35 * attr_w
+            + 0.30 * 0.40
+            + 0.20 * permit_weights.get(permit_status, 0.5)
+            + 0.15 * 1.0,
+            4,
         )
-
+        brief = (
+            f"{src_name} ({src_type}) priority score {score:.2f}/1.00. "
+            f"Accounts for ~{attr_w * 100:.0f}% of city pollution; permit is {permit_status}."
+        )
         await session.execute(
             text(
                 """
@@ -526,8 +629,7 @@ async def _seed_enforcement_queue(session) -> None:
                     (id, city_id, emission_source_id, priority_score,
                      evidence_brief_text, status, created_at, updated_at)
                 VALUES
-                    (:id, :city_id, :src_id, :score,
-                     :brief, 'pending', NOW(), NOW())
+                    (:id, :city_id, :src_id, :score, :brief, 'pending', NOW(), NOW())
                 """
             ),
             {
@@ -538,22 +640,19 @@ async def _seed_enforcement_queue(session) -> None:
                 "brief": brief,
             },
         )
-
     await session.commit()
-    logger.info("Enforcement queue seeded", city_id=DELHI_CITY_ID, items=len(emission_source_ids))
+    logger.info("Delhi enforcement queue seeded", items=len(sources))
 
 
 async def _seed_advisories(session) -> None:
-    """Seed 12 sample advisories for Delhi — all 6 AQI levels × English + Hindi."""
     exists = await session.execute(
         text("SELECT id FROM advisories WHERE city_id = :city_id LIMIT 1"),
         {"city_id": DELHI_CITY_ID},
     )
     if exists.fetchone():
-        logger.info("Advisories seed already present, skipping")
         return
 
-    _LEVELS = [
+    levels = [
         (
             "Good",
             "vehicular",
@@ -579,79 +678,54 @@ async def _seed_advisories(session) -> None:
             "Poor",
             "vehicular",
             245,
-            (
-                "Current AQI is 245 (Poor), driven by vehicular emissions. "
-                "Avoid prolonged outdoor physical activity. "
-                "Wear an N95/FFP2 mask if outdoor exposure is unavoidable. "
-                "People with respiratory conditions should stay indoors."
-            ),
-            (
-                "वर्तमान AQI 245 (खराब) है, जो मुख्यतः वाहनों के धुएं के कारण है। "
-                "लंबे समय तक बाहर शारीरिक गतिविधि से बचें। "
-                "यदि बाहर जाना हो तो N95/FFP2 मास्क पहनें। "
-                "श्वसन रोग से पीड़ित लोग घर के अंदर रहें।"
-            ),
+            "Current AQI is 245 (Poor). Avoid prolonged outdoor activity."
+            " Wear N95 mask if going out."
+            " People with respiratory conditions should stay indoors.",
+            "वर्तमान AQI 245 (खराब) है। लंबे समय तक बाहर न रहें। N95 मास्क पहनें। श्वसन रोगी घर में रहें।",
         ),
         (
             "Very Poor",
             "industrial",
             340,
-            (
-                "Air quality is Very Poor (AQI 340) due to industrial emissions. "
-                "Avoid all outdoor activities. Keep windows closed. "
-                "Use air purifiers indoors if available. "
-                "Children, elderly, and those with health conditions must stay indoors."
-            ),
-            (
-                "वायु गुणवत्ता बहुत खराब (AQI 340) है, औद्योगिक उत्सर्जन के कारण। "
-                "सभी बाहरी गतिविधियाँ बंद रखें। खिड़कियाँ बंद रखें। "
-                "घर के अंदर एयर प्यूरीफायर का उपयोग करें। "
-                "बच्चे, बुजुर्ग और बीमार लोग घर के अंदर रहें।"
-            ),
+            "Air quality is Very Poor (AQI 340). Avoid all outdoor activities."
+            " Keep windows closed. Use air purifiers indoors."
+            " Children and elderly must stay indoors.",
+            "वायु गुणवत्ता बहुत खराब (AQI 340)। सभी बाहरी गतिविधियाँ बंद रखें।"
+            " खिड़कियाँ बंद रखें। बच्चे और बुजुर्ग घर में रहें।",
         ),
         (
             "Severe",
             "agricultural",
             430,
-            (
-                "Severe air quality emergency (AQI 430) — agricultural stubble burning. "
-                "Stay indoors with windows sealed. Avoid all outdoor exposure. "
-                "Seek medical attention if breathing difficulty occurs. "
-                "All outdoor events and construction are suspended."
-            ),
-            (
-                "गंभीर वायु गुणवत्ता आपातकाल (AQI 430) — कृषि अवशेष जलाने के कारण। "
-                "खिड़कियाँ बंद कर घर के अंदर रहें। बाहर न जाएं। "
-                "सांस लेने में कठिनाई होने पर तुरंत चिकित्सा सहायता लें। "
-                "सभी बाहरी कार्यक्रम और निर्माण कार्य निलंबित हैं।"
-            ),
+            "Severe air quality emergency (AQI 430) — stubble burning."
+            " Stay indoors with windows sealed."
+            " Seek medical attention if breathing difficulty occurs."
+            " All outdoor events suspended.",
+            "गंभीर वायु गुणवत्ता आपातकाल (AQI 430)। खिड़कियाँ बंद कर घर में रहें।"
+            " सांस में कठिनाई हो तो तुरंत चिकित्सा लें। सभी बाहरी कार्यक्रम निलंबित।",
         ),
     ]
 
     advisories = []
-    for level, source, aqi_val, body_en, body_hi in _LEVELS:
-        title_en = f"Air Quality Advisory — {level} Air Quality"
-        title_hi = f"वायु गुणवत्ता सलाह — {level} स्तर"
-        advisories.append(
+    for level, source, _, body_en, body_hi in levels:
+        advisories += [
             {
                 "id": str(uuid.uuid4()),
-                "language": "en",
-                "title": title_en,
+                "lang": "en",
+                "title": f"Air Quality Advisory — {level}",
                 "body": body_en,
-                "aqi_level": level,
-                "dominant_source": source,
-            }
-        )
-        advisories.append(
+                "level": level,
+                "source": source,
+            },
             {
                 "id": str(uuid.uuid4()),
-                "language": "hi",
-                "title": title_hi,
+                "lang": "hi",
+                "title": f"वायु गुणवत्ता सलाह — {level}",
                 "body": body_hi,
-                "aqi_level": level,
-                "dominant_source": source,
-            }
-        )
+                "level": level,
+                "source": source,
+            },
+        ]
 
     for adv in advisories:
         await session.execute(
@@ -661,20 +735,19 @@ async def _seed_advisories(session) -> None:
                     (id, city_id, ward_id, language, title, body,
                      aqi_level, dominant_source, channel, sent_at, created_at)
                 VALUES
-                    (:id, :city_id, NULL, :language, :title, :body,
-                     :aqi_level, :dominant_source, 'web', NULL, NOW())
+                    (:id, :city_id, NULL, :lang, :title, :body,
+                     :level, :source, 'web', NULL, NOW() - INTERVAL '2 days')
                 """
             ),
             {
                 "id": adv["id"],
                 "city_id": DELHI_CITY_ID,
-                "language": adv["language"],
+                "lang": adv["lang"],
                 "title": adv["title"],
                 "body": adv["body"],
-                "aqi_level": adv["aqi_level"],
-                "dominant_source": adv["dominant_source"],
+                "level": adv["level"],
+                "source": adv["source"],
             },
         )
-
     await session.commit()
-    logger.info("Advisories seeded", city_id=DELHI_CITY_ID, count=len(advisories))
+    logger.info("Delhi advisories seeded", count=len(advisories))

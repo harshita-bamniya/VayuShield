@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCities } from "@/features/cities/useCities";
@@ -10,14 +9,6 @@ import {
   updateEnforcementStatus,
   type EnforcementItem,
 } from "@/features/enforcement/api";
-
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/enforcement", label: "Enforcement", icon: "🚨" },
-  { to: "/advisories", label: "Advisories", icon: "📢" },
-  { to: "/reports", label: "Reports", icon: "📄" },
-  { to: "/admin/cities", label: "City Admin", icon: "🏙️" },
-];
 
 function permitBadge(status: string) {
   const styles: Record<string, string> = {
@@ -62,8 +53,7 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 export default function Enforcement() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { selectedCityId } = useCities();
   const qc = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -94,60 +84,8 @@ export default function Enforcement() {
 
   const canUseAi = user?.role === "admin" || user?.role === "sysadmin";
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
   return (
-    <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-sm">
-              🌬️
-            </div>
-            <span className="font-bold text-white tracking-tight">VayuShield AI</span>
-          </div>
-        </div>
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-500/20 text-blue-300"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`
-              }
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="px-3 py-4 border-t border-slate-800">
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs text-slate-500">Signed in as</p>
-            <p className="text-sm text-slate-300 truncate">{user?.email}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400 uppercase tracking-wide font-semibold">
-              {user?.role}
-            </span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 text-white">
         {/* Topbar */}
         <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
           <h1 className="text-lg font-semibold text-white">Enforcement Queue</h1>
@@ -182,6 +120,43 @@ export default function Enforcement() {
             <div className="text-red-400 text-center mt-16">Failed to load enforcement queue.</div>
           ) : (
             <>
+              {/* Intervention effectiveness summary banner */}
+              {data && data.items.length > 0 && (() => {
+                const items = data.items;
+                const completed = items.filter((i: EnforcementItem) => i.status === "completed").length;
+                const dispatched = items.filter((i: EnforcementItem) => i.status === "dispatched").length;
+                const pending = items.filter((i: EnforcementItem) => i.status === "pending").length;
+                const total = items.length;
+                const completionRate = Math.round((completed / total) * 100);
+                return (
+                  <div className="mb-4 bg-slate-900 border border-slate-800 rounded-xl p-4 grid grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Pending</p>
+                      <p className="text-xl font-bold text-orange-400">{pending}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Dispatched</p>
+                      <p className="text-xl font-bold text-sky-400">{dispatched}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Completed</p>
+                      <p className="text-xl font-bold text-green-400">{completed}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Completion Rate</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-green-500 transition-all"
+                            style={{ width: `${completionRate}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-mono font-bold text-green-400 shrink-0">{completionRate}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
                 <span>{data?.total ?? 0} sources in queue</span>
               </div>
@@ -284,7 +259,6 @@ export default function Enforcement() {
             </>
           )}
         </main>
-      </div>
     </div>
   );
 }

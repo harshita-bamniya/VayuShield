@@ -38,6 +38,13 @@ export interface WardAqiRow {
   reading_count: number;
 }
 
+export interface EnforcementStats {
+  completed_period: number;
+  dispatched_active: number;
+  pending_count: number;
+  completed_total: number;
+}
+
 export interface ReportSummary {
   city: ReportCity;
   period_days: number;
@@ -47,6 +54,20 @@ export interface ReportSummary {
   forecast: ForecastSummary;
   attribution: AttributionSummary;
   ward_aqi_table: WardAqiRow[];
+  enforcement_stats: EnforcementStats;
+}
+
+export interface AqiTrendPoint {
+  hour: string;
+  aqi: number;
+}
+
+export async function fetchAqiTrend(cityId: string, days: number): Promise<AqiTrendPoint[]> {
+  const resp = await client.get<{ data: AqiTrendPoint[] }>(
+    `/cities/${cityId}/reports/aqi-trend`,
+    { params: { days } }
+  );
+  return resp.data.data;
 }
 
 export async function fetchReportSummary(cityId: string, days: number): Promise<ReportSummary> {

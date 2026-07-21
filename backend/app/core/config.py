@@ -1,4 +1,7 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_KEY = "change_me_in_production"
 
 
 class Settings(BaseSettings):
@@ -29,13 +32,32 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
-    # WhatsApp (Module 07)
+    @model_validator(mode="after")
+    def _check_secret_key(self) -> "Settings":
+        if self.ENVIRONMENT == "production" and self.SECRET_KEY == _INSECURE_KEY:
+            raise ValueError(
+                "SECRET_KEY must be changed from the default before running in production. "
+                'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
+            )
+        return self
+
+    # WhatsApp — Meta Cloud API (future)
     WHATSAPP_PHONE_NUMBER_ID: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
+
+    # WhatsApp — Twilio API (active integration)
+    TWILIO_ENABLED: bool = False
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_WHATSAPP_FROM: str = "+14155238886"  # Twilio sandbox number
+    TWILIO_DEFAULT_PHONE: str = ""  # Default recipient phone number
 
     # Ingestion (Module 03)
     FIRMS_MAP_KEY: str = ""  # NASA FIRMS — https://firms.modaps.eosdis.nasa.gov/api/
     CPCB_API_KEY: str = ""  # data.gov.in CPCB real-time AQ — https://api.data.gov.in/
+    WAQI_TOKEN: str = ""  # aqicn.org WAQI — https://aqicn.org/data-platform/token/
+    EARTHDATA_TOKEN: str = ""  # NASA Earthdata — https://earthdata.nasa.gov/
+    TOMTOM_API_KEY: str = ""  # TomTom Traffic — https://developer.tomtom.com/
 
 
 settings = Settings()

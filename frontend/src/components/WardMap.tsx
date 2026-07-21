@@ -1,14 +1,36 @@
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, CircleMarker, Popup, useMap } from "react-leaflet";
 import type { Layer, PathOptions } from "leaflet";
 import type { WardWithAqi } from "@/lib/types";
-import type { FireHotspot } from "@/features/cities/api";
+import type { FireHotspot, TrafficSegment } from "@/features/cities/api";
+
+// NASA GIBS WMS — MODIS Terra Aerosol Optical Depth (daily, no auth required)
+const GIBS_WMS_URL = "https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi";
+
+function MapRecenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, 10, { duration: 0.8 });
+  }, [center[0], center[1]]);
+  return null;
+}
+
+function trafficColor(ratio: number): string {
+  if (ratio < 1.0) return "#22c55e";   // clear — green
+  if (ratio < 1.5) return "#a3e635";   // normal — lime
+  if (ratio < 2.5) return "#f97316";   // moderate — orange
+  return "#ef4444";                     // heavy — red
+}
 
 interface WardMapProps {
   wards: WardWithAqi[];
   onWardClick?: (wardId: string) => void;
   fireHotspots?: FireHotspot[];
+  trafficSegments?: TrafficSegment[];
   center?: [number, number];
+  showSatellite?: boolean;
+  showTraffic?: boolean;
 }
 
 function aqiFillColor(aqi: number | null): string {
@@ -38,7 +60,7 @@ function hotspotRadius(frp: number | null): number {
   return frp ? Math.max(6, Math.min(20, frp / 10)) : 8;
 }
 
-export default function WardMap({ wards, onWardClick, fireHotspots = [], center = [28.62, 77.21] }: WardMapProps) {
+export default function WardMap({ wards, onWardClick, fireHotspots = [], trafficSegments = [], center = [28.62, 77.21], showSatellite = false, showTraffic = false }: WardMapProps) {
   const wardsWithGeom = wards.filter((w) => w.geometry);
   const wardsWithoutGeom = wards.filter((w) => !w.geometry);
 
@@ -49,10 +71,22 @@ export default function WardMap({ wards, onWardClick, fireHotspots = [], center 
       style={{ height: "100%", width: "100%" }}
       scrollWheelZoom={false}
     >
+      <MapRecenter center={center} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {showSatellite && (
+        <WMSTileLayer
+          url={GIBS_WMS_URL}
+          layers="MODIS_Terra_Aerosol"
+          format="image/png"
+          transparent={true}
+          opacity={0.55}
+          attribution="Imagery courtesy NASA GIBS / MODIS Terra"
+          version="1.1.1"
+        />
+      )}
       {wardsWithGeom.map((ward) => (
         <GeoJSON
           key={ward.id}
@@ -127,6 +161,58 @@ export default function WardMap({ wards, onWardClick, fireHotspots = [], center 
           </Popup>
         </CircleMarker>
       ))}
+
+      {/* Traffic congestion segment markers */}
+      {showTraffic && trafficSegments
+        .filter((s) => s.lat != null && s.lon != null)
+        .map((seg) => (
+          <CircleMarker
+            key={seg.segment_id}
+            center={[seg.lat!, seg.lon!]}
+            radius={10}
+            pathOptions={{
+              color: trafficColor(seg.congestion_ratio),
+              fillColor: trafficColor(seg.congestion_ratio),
+              fillOpacity: 0.85,
+              weight: 2,
+            }}
+          >
+            <Popup>
+              <div style={{ minWidth: 180 }}>
+                <strong>🚗 {seg.segment_name ?? seg.segment_id}</strong>
+                <br />
+                Congestion: <strong>{seg.congestion_ratio.toFixed(2)}×</strong>{" "}
+                ({seg.congestion_ratio < 1.0 ? "Clear" : seg.congestion_ratio < 1.5 ? "Normal" : seg.congestion_ratio < 2.5 ? "Moderate" : "Heavy"})
+                <br />
+                Speed: {seg.current_speed != null ? `${seg.current_speed.toFixed(0)} km/h` : "—"}
+                {" / "}
+                {seg.free_flow_speed != null ? `${seg.free_flow_speed.toFixed(0)} km/h free-flow` : ""}
+                {seg.is_mock && <><br /><span style={{ fontSize: 10, color: "#64748b" }}>Mock data — set TOMTOM_API_KEY for live</span></>}
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
+      {/* Satellite layer attribution badge */}
+      {showSatellite && (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: 50,
+            zIndex: 1000,
+            background: "rgba(15,23,42,0.85)",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 10,
+            color: "#7dd3fc",
+            pointerEvents: "none",
+            border: "1px solid rgba(56,189,248,0.3)",
+          }}
+        >
+          🛰 MODIS Terra AOD overlay active
+        </div>
+      )}
 
       {/* Legend */}
       <div
